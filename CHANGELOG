@@ -1,0 +1,13 @@
+=== v.10 - 2010-02-22 ===
+
+FEATURES:
+- OAuth login support
+- SSL support
+
+FIXES:
+- Fixes to message parsing including uses HTML::Entities to decode tweets.
+- Fix to topic being set multiple times on update.
+- Display new style retweets
+- Fix to doubly shortened URLs
+- Fix to improperly case-sensitive user names
+- Fix to search using incorrect parameter key
