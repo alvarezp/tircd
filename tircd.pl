@@ -18,7 +18,7 @@ use URI qw/host/;
 # @Olatho - issue 45
 use HTML::Entities;
 
-my $VERSION = 0.8;
+my $VERSION = 0.10;
 # consumer key/secret in the executable instead of config because it should not be edited by user
 my $tw_oauth_con_key = "4AQca4GFiWWaifUknq35Q";
 my $tw_oauth_con_sec = "VB0exmHlErkx4GUUsXvoR4bqaXi56Rl43NL1Z9Q";
