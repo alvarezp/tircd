@@ -1365,7 +1365,7 @@ sub twitter_timeline {
         push(@{$heap->{'friends'}},$tmp);
       }
       # Join them to #twitter
-      $kernel->yield('user_msg','JOIN',$item->{'user'}->{'screen_name'},'#twitter');
+      $kernel->yield('user_msg','JOIN',$item->{'user'}->{'screen_name'},'#twitter') unless ($silent);
       # Check if they should have voice (+v)
       if ($kernel->call($_[SESSION],'getfollower',$item->{'user'}->{'screen_name'})) {
         $heap->{'channels'}->{'#twitter'}->{'names'}->{$item->{'user'}->{'screen_name'}} = '+';
@@ -1401,7 +1401,7 @@ sub twitter_timeline {
     }
     if (($is_following->{'status'}) && ($is_following->{'following'} == 0)) {
       # If we are not following them - have them part #twitter again
-      $kernel->yield('user_msg','PART',$item->{'user'}->{'screen_name'},'#twitter');
+      $kernel->yield('user_msg','PART',$item->{'user'}->{'screen_name'},'#twitter') unless ($silent);
       delete $heap->{'channels'}->{'#twitter'}->{'names'}->{$item->{'user'}->{'screen_name'}};
     }
   }
