@@ -649,7 +649,7 @@ sub irc_nick {
 
   $heap->{'username'} = $data->{'params'}[0]; #stash the username for later
 
-  if ($heap->{'username'} && $heap->{'password'} && !$heap->{'twitter'}) {
+  if (  ($heap->{'username'} && $heap->{'password'} && !$heap->{'twitter'})  ||  ($heap->{'username'} =~ m/^oauth$/i)  ) {
     $kernel->yield('login');
   }
 }
@@ -657,7 +657,7 @@ sub irc_nick {
 sub irc_user {
   my ($kernel, $heap, $data) = @_[KERNEL, HEAP, ARG0];
 
-  if ($heap->{'username'} && $heap->{'password'} && !$heap->{'twitter'}) {
+  if (  ($heap->{'username'} && $heap->{'password'} && !$heap->{'twitter'})  ||  ($heap->{'username'} =~ m/^oauth$/i)  ) {
     $kernel->yield('login');
   }
 
