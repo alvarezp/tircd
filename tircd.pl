@@ -301,6 +301,13 @@ sub twitter_basic_login {
 	$heap->{'nt_params'}{'username'} = $heap->{'username'};
 	$heap->{'nt_params'}{'password'} = $heap->{'password'};
 
+  if (exists $users{$heap->{'username'}}) {
+    $kernel->yield('server_reply',436,$heap->{'username'},'You are already connected to Twitter with this username.');    
+    $kernel->yield('shutdown');
+    return;
+  }
+
+
 	#start up the twitter interface, and see if we can connect with the given NICK/PASS INFO
 	$heap->{'twitter'} = Net::Twitter::Lite->new(%{ $heap->{'nt_params'} });
 
@@ -352,6 +359,7 @@ sub twitter_oauth_login_begin {
 }
 
 # direct user to pin site
+# TODO: run get_authentication_url first, in eval, check reply
 sub twitter_oauth_pin_ask {
 	my ($kernel, $heap) = @_[KERNEL,HEAP];
 	$kernel->yield('server_reply',463,"Please authorize this connection at:");
@@ -636,10 +644,9 @@ sub irc_nick {
     return;
   }
 
-  if (exists $users{$data->{'params'}[0]}) {
-    $kernel->yield('server_reply',436,$data->{'params'}[0],'You are already connected to Twitter with this username.');    
-    $kernel->yield('shutdown');
-    return;
+  # head right to oauth if the nick is oauth
+  if ($data->{'params'}[0] =~ m/^oauth$/i) {
+		return $kernel->call($_[SESSION],'oauth_login_begin');
   }
 
   $heap->{'username'} = $data->{'params'}[0]; #stash the username for later
