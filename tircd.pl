@@ -283,49 +283,11 @@ sub tircd_login {
 		return unless($kernel->call($_[SESSION],'verify_ssl'));
 	}
 
-	# kick off specified authentication flow
-	# username oauth is (currently) reserved on twitter, can be used to pick login
-	if ($heap->{'username'} =~ /^oauth$/i) {
-		return $kernel->call($_[SESSION],'oauth_login_begin');
-	} else {
-		return $kernel->call($_[SESSION],'basicauth_login');
-	}
+  # begin oauth authentication flow
+  return $kernel->call($_[SESSION],'oauth_login_begin');
 }
 
-# Login methods
-
-# basic auth code from original tircd_login sub
-sub twitter_basic_login {
-	my ($kernel, $heap) = @_[KERNEL, HEAP];
-
-	$heap->{'nt_params'}{'username'} = $heap->{'username'};
-	$heap->{'nt_params'}{'password'} = $heap->{'password'};
-
-  if (exists $users{$heap->{'username'}}) {
-    $kernel->yield('server_reply',436,$heap->{'username'},'You are already connected to Twitter with this username.');    
-    $kernel->yield('shutdown');
-    return;
-  }
-
-
-	#start up the twitter interface, and see if we can connect with the given NICK/PASS INFO
-	$heap->{'twitter'} = Net::Twitter::Lite->new(%{ $heap->{'nt_params'} });
-
-	unless (eval{ $heap->{'twitter'}->verify_credentials() }) {
-		$kernel->post('logger','log','Unable to login to Twitter with the supplied credentials.',$heap->{'username'});
-		$kernel->yield('server_reply',462,'Unable to login to Twitter with the supplied credentials.');
-		$kernel->yield('shutdown'); #disconnect 'em if we cant
-		return;
-	}
-
-	$kernel->post('logger','log','Successfully authenticated with Twitter.',$heap->{'username'});
-
-
-	$kernel->yield('setup_authenticated_user');
-	return 1;
-}
-
-# called by tircd_login when username set to oauth
+# oauth login flow
 sub twitter_oauth_login_begin {
 	my ($kernel, $heap) = @_[KERNEL, HEAP];
 	$heap->{'nt_params'}{'consumer_key'} = $tw_oauth_con_key;
@@ -338,16 +300,20 @@ sub twitter_oauth_login_begin {
 		$kernel->yield('shutdown');
 	}
 
-	$kernel->yield('server_reply',463,'OAuth authentication selected.');
+	$kernel->yield('server_reply',463,'OAuth authentication beginning.');
 
 	$heap->{'twitter'} = Net::Twitter::Lite->new(%{$heap->{'nt_params'}});
 
-	# if tokens in config, try to re-use
+	# load user config from disk for reusing tokens
+	if (-d $config{'storage_path'}) {
+		$heap->{'config'}   = eval {retrieve($config{'storage_path'} . '/' . $heap->{'username'} . '.config');};
+	} 
+
+	# if tokens exist in users config, attempt to re-use
 	# TODO allow users to specify no store of access tokens
-	if ($heap->{'config'}->{'access_token'} && $heap->{'config'}->{'access_token_secret'} && $heap->{'config'}->{'username'}) {
+	if ($heap->{'config'}->{'access_token'} && $heap->{'config'}->{'access_token_secret'}) {
 		$heap->{'twitter'}->access_token($heap->{'config'}->{'access_token'});
 		$heap->{'twitter'}->access_token_secret($heap->{'config'}->{'access_token_secret'});
-		$heap->{'username'} = $heap->{'config'}->{'username'};
 		return if $kernel->call($_[SESSION],'oauth_login_finish');
 	}
 
@@ -428,11 +394,10 @@ sub tircd_setup_authenticated_user {
 
 	#load our configs from disk if they exist
 	if (-d $config{'storage_path'}) {
-		$heap->{'config'}   = eval {retrieve($config{'storage_path'} . '/' . $heap->{'username'} . '.config');};
 		$heap->{'channels'} = eval {retrieve($config{'storage_path'} . '/' . $heap->{'username'} . '.channels');};
 	} 
 
-	my @user_settings = qw(update_timeline update_directs timeline_count long_messages min_length join_silent filter_self shorten_urls convert_irc_replies);
+	my @user_settings = qw(update_timeline update_directs timeline_count long_messages min_length join_silent filter_self shorten_urls convert_irc_replies access_token access_token_secret);
 
 	# copy base config for user if prior config failed to exist/retrieve
 	if (!$heap->{'config'}) {
@@ -639,19 +604,15 @@ sub irc_pass {
 
 sub irc_nick {
   my ($kernel, $heap, $data) = @_[KERNEL, HEAP, ARG0];
+
   if ($heap->{'username'}) { #if we've already got their nick, don't let them change it
     $kernel->yield('server_reply',433,'Changing nicks once connected is not currently supported.');    
     return;
   }
 
-  # head right to oauth if the nick is oauth
-  if ($data->{'params'}[0] =~ m/^oauth$/i) {
-		return $kernel->call($_[SESSION],'oauth_login_begin');
-  }
-
   $heap->{'username'} = $data->{'params'}[0]; #stash the username for later
 
-  if ($heap->{'username'} && $heap->{'password'} && !$heap->{'twitter'}) {
+  if (!$heap->{'twitter'}) {
     $kernel->yield('login');
   }
 }
@@ -659,10 +620,10 @@ sub irc_nick {
 sub irc_user {
   my ($kernel, $heap, $data) = @_[KERNEL, HEAP, ARG0];
 
-  if ($heap->{'username'} && $heap->{'password'} && !$heap->{'twitter'}) {
+  # proceed to login if we have the nick and no connection
+  if ($heap->{'username'} && !$heap->{'twitter'}) {
     $kernel->yield('login');
   }
-
 }
 
 #return the MOTD
