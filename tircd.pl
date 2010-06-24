@@ -18,7 +18,7 @@ use URI qw/host/;
 # @Olatho - issue 45
 use HTML::Entities;
 
-my $VERSION = 0.8;
+my $VERSION = 0.11;
 # consumer key/secret in the executable instead of config because it should not be edited by user
 my $tw_oauth_con_key = "4AQca4GFiWWaifUknq35Q";
 my $tw_oauth_con_sec = "VB0exmHlErkx4GUUsXvoR4bqaXi56Rl43NL1Z9Q";
@@ -1333,7 +1333,7 @@ sub twitter_timeline {
         push(@{$heap->{'friends'}},$tmp);
       }
       # Join them to #twitter
-      $kernel->yield('user_msg','JOIN',$item->{'user'}->{'screen_name'},'#twitter');
+      $kernel->yield('user_msg','JOIN',$item->{'user'}->{'screen_name'},'#twitter') unless ($silent);
       # Check if they should have voice (+v)
       if ($kernel->call($_[SESSION],'getfollower',$item->{'user'}->{'screen_name'})) {
         $heap->{'channels'}->{'#twitter'}->{'names'}->{$item->{'user'}->{'screen_name'}} = '+';
@@ -1369,7 +1369,7 @@ sub twitter_timeline {
     }
     if (($is_following->{'status'}) && ($is_following->{'following'} == 0)) {
       # If we are not following them - have them part #twitter again
-      $kernel->yield('user_msg','PART',$item->{'user'}->{'screen_name'},'#twitter');
+      $kernel->yield('user_msg','PART',$item->{'user'}->{'screen_name'},'#twitter') unless ($silent);
       delete $heap->{'channels'}->{'#twitter'}->{'names'}->{$item->{'user'}->{'screen_name'}};
     }
   }
