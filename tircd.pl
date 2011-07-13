@@ -1,6 +1,7 @@
 #!/usr/bin/perl
 # tircd - An ircd proxy to the Twitter API
 # Copyright (c) 2009 Chris Nelson <tircd@crazybrain.org>
+# Copyright (c) 2010-2011 Tim Sogard <tircd@timsogard.com>
 # tircd is free software; you can redistribute it and/or modify it under the terms of either:
 # a) the GNU General Public License as published by the Free Software Foundation
 # b) the "Artistic License"
@@ -19,6 +20,7 @@ use URI qw/host/;
 use HTML::Entities;
 
 my $VERSION = 0.11;
+
 # consumer key/secret in the executable instead of config because it should not be edited by user
 my $tw_oauth_con_key = "4AQca4GFiWWaifUknq35Q";
 my $tw_oauth_con_sec = "VB0exmHlErkx4GUUsXvoR4bqaXi56Rl43NL1Z9Q";
@@ -125,7 +127,9 @@ POE::Component::Server::TCP->new(
     
     server_reply => \&irc_reply,
     user_msg	 => \&irc_user_msg,
+    handle_command => \&irc_twitterbot_command,
 
+    twitter_post_tweet => \&twitter_post_tweet,
     twitter_api_error => \&twitter_api_error,    
     twitter_timeline => \&twitter_timeline,
     twitter_direct_messages => \&twitter_direct_messages,
@@ -400,6 +404,8 @@ sub tircd_setup_authenticated_user {
 	my @user_settings = qw(update_timeline update_directs timeline_count long_messages min_length join_silent filter_self shorten_urls convert_irc_replies access_token access_token_secret);
 
 	# copy base config for user if prior config failed to exist/retrieve
+   # TODO: where does original heap config come from
+   # TODO: oauth token storage invalidates following
 	if (!$heap->{'config'}) {
 		my %copy = %config;
 		$heap->{'config'} = \%copy;
@@ -933,67 +939,12 @@ sub irc_privmsg {
       $target = '#twitter'; #we want to force all topic changes and what not into twitter for now
     }
 
-    #shorten the URL
-    if (eval("require URI::Find;") && $heap->{'config'}->{'shorten_urls'}) {
-      my $finder = URI::Find->new(sub {
-        my $uriobj = shift;
-        my $uri = shift;
-        
-        if ($uri !~ /^http:/) {
-          return $uri;
-        }
+    if ($heap->{'config'}->{'auto_post'} == 1) {
+      $kernel->yield('twitter_post_tweet',$target, $msg);
 
-        # Do not shorten twice - heuristics!
-        if (length($uri) < 30) {
-          return $uri;
-        }
-
-        
-        my $res = $heap->{'ua'}->get("http://tinyurl.com/api-create.php?url=$uri");
-        if ($res->is_success) {
-          return $res->content;
-        } else {
-          return $uri;
-        }
-      });
-      $finder->find(\$msg);
-    }
-    
-    #Tweak the @replies
-    if ($msg =~ /^(\w+)\: / && $heap->{'config'}->{'convert_irc_replies'}) {
-      # @Olatho - changing ALL first-words that end with : to @, not only nicks on #Twitter
-      # - I sometimes reply to people that I do not follow, and want them converted as well
-      $msg =~ s/^(\w+)\: /\@$1 /;
-    }
-
-    #warn if asked and the message is too long after fucking with it
-    if ($heap->{'config'}->{'long_messages'} eq 'warn' && length($msg) > 140) {
-      $kernel->yield('server_reply',404,$target,'Your message is '.length($msg).' characters long.  Your message was not sent.');
-      return;
-    }  
-    
-    #in a channel, this an update
-    my $update = eval { $heap->{'twitter'}->update($msg) };
-    my $error = $@;
-    if (!$update && ref $error && $error->isa("Net::Twitter::Lite::Error") && $error->code() >= 400) {
-      $kernel->call($_[SESSION],'twitter_api_error','Unable to update status.',$error);
-      return;
-    } 
-
-    $msg = $update->{'text'};
-    
-    #update our own friend record
-    my $me = $kernel->call($_[SESSION],'getfriend',$heap->{'username'});
-    $me = $update->{'user'};
-    $me->{'status'} = $update;
-    $kernel->call($_[SESSION],'updatefriend',$me);
-    
-    #keep the topic updated with our latest tweet  
-    $kernel->yield('user_msg','TOPIC',$heap->{'username'},$target,"$heap->{'username'}'s last update: $msg");
-    # Olatho - Fixing duplicate topic-changes
-    $heap->{'channels'}->{$target}->{'topic'} = $msg;
-
-    $kernel->post('logger','log','Updated status.',$heap->{'username'});
+     } else {
+       $kernel->yield('handle_command',$msg);
+     }
   } else { 
     #private message, it's a dm
     my $dm = eval { $heap->{'twitter'}->new_direct_message({user => $target, text => $msg}) };
@@ -1004,6 +955,87 @@ sub irc_privmsg {
       $kernel->post('logger','log',"Sent direct message to $target",$heap->{'username'});
     }
   }    
+}
+
+sub twitter_post_tweet {
+   # throwaway target for now
+   my($kernel, $heap, $target, $msg) = @_[KERNEL, HEAP, ARG0, ARG1];
+   #shorten the URL
+   if (eval("require URI::Find;") && $heap->{'config'}->{'shorten_urls'}) {
+      my $finder = URI::Find->new(sub {
+            my $uriobj = shift;
+            my $uri = shift;
+
+            if ($uri !~ /^http:/) {
+            return $uri;
+            }
+
+            # Do not shorten twice - heuristics!
+            if (length($uri) < 30) {
+            return $uri;
+            }
+
+
+            my $res = $heap->{'ua'}->get("http://tinyurl.com/api-create.php?url=$uri");
+            if ($res->is_success) {
+            return $res->content;
+            } else {
+            return $uri;
+            }
+            });
+      $finder->find(\$msg);
+   }
+
+	#Tweak the @replies
+   if ($msg =~ /^(\w+)\: / && $heap->{'config'}->{'convert_irc_replies'}) {
+	# @Olatho - changing ALL first-words that end with : to @, not only nicks on #Twitter
+	# - I sometimes reply to people that I do not follow, and want them converted as well
+      $msg =~ s/^(\w+)\: /\@$1 /;
+   }
+
+	#warn if asked and the message is too long after fucking with it
+   if ($heap->{'config'}->{'long_messages'} eq 'warn' && length($msg) > 140) {
+      $kernel->yield('server_reply',404,$target,'Your message is '.length($msg).' characters long.  Your message was not sent.');
+      return;
+   }  
+
+	#in a channel, this an update
+   my $update = eval { $heap->{'twitter'}->update($msg) };
+   my $error = $@;
+   if (!$update && ref $error && $error->isa("Net::Twitter::Lite::Error") && $error->code() >= 400) {
+      $kernel->call($_[SESSION],'twitter_api_error','Unable to update status.',$error);
+      return;
+   } 
+
+   $msg = $update->{'text'};
+
+	#update our own friend record
+   my $me = $kernel->call($_[SESSION],'getfriend',$heap->{'username'});
+   $me = $update->{'user'};
+   $me->{'status'} = $update;
+   $kernel->call($_[SESSION],'updatefriend',$me);
+
+	#keep the topic updated with our latest tweet  
+   $kernel->yield('user_msg','TOPIC',$heap->{'username'},$target,"$heap->{'username'}'s last update: $msg");
+	# Olatho - Fixing duplicate topic-changes
+   $heap->{'channels'}->{$target}->{'topic'} = $msg;
+
+   $kernel->post('logger','log','Updated status.',$heap->{'username'});
+}
+
+# allow user to control updating / message attribution / etc with offerbot type
+# commands
+sub irc_twitterbot_command {
+  my ($kernel, $heap, $data) = @_[KERNEL, HEAP, ARG0];
+  $kernel->post('logger','log','Received ' . $data . ' as command string');
+  if ($data =~ /^\s*!(up|update)/) {
+    $kernel->yield('twitter_timeline');
+    $kernel->yield('twitter_direct_messages');
+  }
+  if ($data =~ /\s*!(t|tweet)/) {
+    (my $msg = $data) =~ s/\s*!(t|tweet)\s*//;
+    $kernel->yield('twitter_post_tweet','#twitter',$msg);
+  }
 }
 
 #allow the user to follow new users by adding them to the channel
@@ -1374,7 +1406,9 @@ sub twitter_timeline {
     }
   }
 
-  $kernel->delay('twitter_timeline',$heap->{'config'}->{'update_timeline'});
+  if ($heap->{'config'}->{'update_timeline'} > 0) {
+    $kernel->delay('twitter_timeline',$heap->{'config'}->{'update_timeline'});
+  }
 }
 
 #same as above, but for direct messages, show 'em as PRIVMSGs from the user
@@ -1421,8 +1455,9 @@ sub twitter_direct_messages {
       $kernel->yield('user_msg','PRIVMSG',$item->{'sender'}->{'screen_name'},$heap->{'username'},$item->{'text'});
     }      
   }
-
-  $kernel->delay('twitter_direct_messages',$heap->{'config'}->{'update_directs'});
+  if ($heap->{'config'}->{'update_directs'} > 0) {
+    $kernel->delay('twitter_direct_messages',$heap->{'config'}->{'update_directs'});
+  }
 }
 
 sub twitter_search {
