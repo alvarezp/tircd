@@ -338,7 +338,7 @@ sub twitter_oauth_login_begin {
 sub twitter_oauth_pin_ask {
 	my ($kernel, $heap) = @_[KERNEL,HEAP];
 	$kernel->yield('server_reply',463,"Please authorize this connection at:");
-	$kernel->yield('server_reply',463,$heap->{'twitter'}->get_authentication_url);
+	$kernel->yield('server_reply',463,$heap->{'twitter'}->get_authorization_url);
 	$kernel->yield('server_reply',463,"To continue connecting, type /stats pin <PIN>, where <PIN> is the PIN returned by the twitter authorize page.");
 	# half an hour until disconnect
 	$kernel->alarm('no_pin_received',time() + 1800);
