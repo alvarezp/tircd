@@ -16,6 +16,7 @@ use LWP::UserAgent;
 use Storable;
 use POE qw(Component::Server::TCP Filter::Stackable Filter::Map Filter::IRCD);
 use URI qw/host/;
+use List::Util 'shuffle';
 # @Olatho - issue 45
 use HTML::Entities;
 
@@ -1351,6 +1352,12 @@ sub twitter_timeline {
     my $tmp = $item->{'user'};
     my $is_following = ();
     $tmp->{'status'} = $item;
+
+    # assign a ticker slot for later referencing with !reply or !retweet
+    my $ticker_slot = get_timeline_ticker_slot();
+    $heap->{'timeline_ticker'}->{$ticker_slot} = $item->{'id'};
+    $item->{'tircd_ticker_slot'} = $ticker_slot;
+    $kernel->post('logger','log','Slot ' . $ticker_slot . ' contains tweet with id: ' . $item->{'id'},$heap->{'username'}) if ($debug >= 2);
     
     if (my $friend = $kernel->call($_[SESSION],'getfriend',$item->{'user'}->{'screen_name'})) { #if we've seen 'em before just update our cache
       $kernel->call($_[SESSION],'updatefriend',$tmp);
@@ -1390,11 +1397,11 @@ sub twitter_timeline {
         foreach my $chan (keys %{$heap->{'channels'}}) {
           # - Send the message to the #twitter-channel if it is different from my latest update (IE different from current topic)
           if ($chan eq '#twitter' && exists $heap->{'channels'}->{$chan}->{'names'}->{$item->{'user'}->{'screen_name'}} && $item->{'text'} ne $heap->{'channels'}->{$chan}->{'topic'}) {
-            $kernel->yield('user_msg','PRIVMSG',$item->{'user'}->{'screen_name'},$chan,$item->{'text'});
+            $kernel->yield('user_msg','PRIVMSG',$item->{'user'}->{'screen_name'},$chan,'[' . $item->{'tircd_ticker_slot'} . '] ' . $item->{'text'});
           }
           # - Send the message to the other channels the user is in if the user is not "me"
           if ($chan ne '#twitter' && exists $heap->{'channels'}->{$chan}->{'names'}->{$item->{'user'}->{'screen_name'}} && $item->{'user'}->{'screen_name'} ne $heap->{'username'}) {
-            $kernel->yield('user_msg','PRIVMSG',$item->{'user'}->{'screen_name'},$chan,$item->{'text'});
+            $kernel->yield('user_msg','PRIVMSG',$item->{'user'}->{'screen_name'},$chan,'[' . $item->{'tircd_ticker_slot'} . '] ' . $item->{'text'});
           }
           # - And set topic on the #twitter channel if user is me and the topic is not already set 
           if ($chan eq '#twitter' && $item->{'user'}->{'screen_name'} eq $heap->{'username'} && $item->{'text'} ne $heap->{'channels'}->{$chan}->{'topic'}) {
@@ -1464,6 +1471,25 @@ sub twitter_direct_messages {
     $kernel->delay('twitter_direct_messages',$heap->{'config'}->{'update_directs'});
   }
 }
+
+# reusable timeline ticker. 
+# ticker names as short hashes for readability/uniqueness
+# does ~3800 tweets before rebuilding list
+sub get_timeline_ticker_slot {
+   my ($kernel, $heap) = @_[KERNEL, HEAP];
+
+   # build usage order list
+   if (!defined($heap->{'timeline_ticker_unused'}) || (scalar($heap->{'timeline_ticker_unused'}) < 1)) {
+      push (@{$heap->{'timeline_ticker_unused'}},  sprintf("%x", $_)) for (shuffle(256 .. 4095));
+   }
+
+   my $ticker_slot = pop(@{$heap->{'timeline_ticker_unused'}});
+
+   return $ticker_slot;
+}
+
+
+
 
 sub twitter_search {
   my ($kernel, $heap, $chan) = @_[KERNEL, HEAP, ARG0];
