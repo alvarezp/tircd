@@ -131,6 +131,7 @@ POE::Component::Server::TCP->new(
     handle_command => \&irc_twitterbot_command,
 
     twitter_post_tweet => \&twitter_post_tweet,
+    twitter_retweet_tweet => \&twitter_retweet_tweet,
     twitter_api_error => \&twitter_api_error,    
     twitter_timeline => \&twitter_timeline,
     twitter_direct_messages => \&twitter_direct_messages,
@@ -1029,18 +1030,40 @@ sub twitter_post_tweet {
    $kernel->post('logger','log','Updated status.',$heap->{'username'});
 }
 
+sub twitter_retweet_tweet {
+   my($kernel, $heap, $tweet_id) = @_[KERNEL, HEAP, ARG0];
+
+   $kernel->post('logger','log','Retweeting status:'. $tweet_id);
+   my $rt = eval { $heap->{'twitter'}->retweet($tweet_id) };
+   my $error = $@;
+   if (!$rt && ref $error && $error->isa("Net::Twitter::Lite::Error") && $error->code() >= 400) {
+      $kernel->call($_[SESSION],'twitter_api_error','Unable to retweet status.',$error);
+      return;
+   } 
+
+   # TODO let user know if rt is successful
+}
+
 # allow user to control updating / message attribution / etc with offerbot type
 # commands
 sub irc_twitterbot_command {
   my ($kernel, $heap, $data) = @_[KERNEL, HEAP, ARG0];
   $kernel->post('logger','log','Received ' . $data . ' as command string');
-  if ($data =~ /^\s*!(up|update)/) {
+  if ($data =~ /^\s*!(up|update)/i) {
     $kernel->yield('twitter_timeline');
     $kernel->yield('twitter_direct_messages');
   }
-  if ($data =~ /\s*!(t|tweet)/) {
-    (my $msg = $data) =~ s/\s*!(t|tweet)\s*//;
+
+  if ($data =~ /\s*!(t|tweet)/i) {
+    (my $msg = $data) =~ s/\s*!(t|tweet)\s*//i;
     $kernel->yield('twitter_post_tweet','#twitter',$msg);
+  }
+
+  if ($data =~ /\s*!(rt|retweet)/i) {
+    (my $ticker_slot_selected = $data) =~ s/\s*!(rt|retweet)\s*//i;
+    my $tweet_id = $heap->{'timeline_ticker'}->{$ticker_slot_selected};
+    $kernel->post('logger','log',"Got tweet_id of $tweet_id for slot $ticker_slot_selected",$heap->{'username'});
+    $kernel->yield('twitter_retweet_tweet',$tweet_id);
   }
 }
 
