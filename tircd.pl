@@ -167,6 +167,11 @@ exit 0;
 sub tircd_setup {
   $_[KERNEL]->call('logger','log',"tircd $VERSION started, using config from: $config_file.");
   $_[KERNEL]->call('logger','log',"Listening on: $config{'address'}:$config{'port'}."); 
+  if ($debug=1) {
+    $_[KERNEL]->call('logger','log',"Using Net::Twitter::Lite version: $Net::Twitter::Lite::VERSION");
+    $_[KERNEL]->call('logger','log',"Using LWP::UserAgent version: $LWP::UserAgent::VERSION");
+    $_[KERNEL]->call('logger','log',"Using POE::Filter::IRCD version: $POE::Filter::IRCD::VERSION");
+  }
 }
 
 #setup our logging session
