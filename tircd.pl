@@ -1,6 +1,7 @@
 #!/usr/bin/perl
 # tircd - An ircd proxy to the Twitter API
 # Copyright (c) 2009 Chris Nelson <tircd@crazybrain.org>
+# Copyright (c) 2010-2011 Tim Sogard <tircd@timsogard.com>
 # tircd is free software; you can redistribute it and/or modify it under the terms of either:
 # a) the GNU General Public License as published by the Free Software Foundation
 # b) the "Artistic License"
@@ -15,10 +16,12 @@ use LWP::UserAgent;
 use Storable;
 use POE qw(Component::Server::TCP Filter::Stackable Filter::Map Filter::IRCD);
 use URI qw/host/;
+use List::Util 'shuffle';
 # @Olatho - issue 45
 use HTML::Entities;
 
-my $VERSION = 0.8;
+my $VERSION = 0.11;
+
 # consumer key/secret in the executable instead of config because it should not be edited by user
 my $tw_oauth_con_key = "4AQca4GFiWWaifUknq35Q";
 my $tw_oauth_con_sec = "VB0exmHlErkx4GUUsXvoR4bqaXi56Rl43NL1Z9Q";
@@ -125,7 +128,10 @@ POE::Component::Server::TCP->new(
     
     server_reply => \&irc_reply,
     user_msg	 => \&irc_user_msg,
+    handle_command => \&irc_twitterbot_command,
 
+    twitter_post_tweet => \&twitter_post_tweet,
+    twitter_retweet_tweet => \&twitter_retweet_tweet,
     twitter_api_error => \&twitter_api_error,    
     twitter_timeline => \&twitter_timeline,
     twitter_direct_messages => \&twitter_direct_messages,
@@ -163,6 +169,11 @@ exit 0;
 sub tircd_setup {
   $_[KERNEL]->call('logger','log',"tircd $VERSION started, using config from: $config_file.");
   $_[KERNEL]->call('logger','log',"Listening on: $config{'address'}:$config{'port'}."); 
+  if ($config{'debug'}) {
+    $_[KERNEL]->call('logger','log',"Using Net::Twitter::Lite version: $Net::Twitter::Lite::VERSION");
+    $_[KERNEL]->call('logger','log',"Using LWP::UserAgent version: $LWP::UserAgent::VERSION");
+    $_[KERNEL]->call('logger','log',"Using POE::Filter::IRCD version: $POE::Filter::IRCD::VERSION");
+  }
 }
 
 #setup our logging session
@@ -208,12 +219,18 @@ sub twitter_api_error {
     $kernel->post('logger','log',$error->message().' '.$error->code().' '.$error,'debug/twitter_api_error');
   }
 
-  $kernel->post('logger','log',$msg.' ('.$error->code() .' from Twitter API).',$heap->{'username'});  
+  if ($error) {
+    $kernel->post('logger','log',$msg.' ('.$error->code() .' from Twitter API).',$heap->{'username'});  
 
-  if ($error->code() == 400) {
-    $msg .= ' Twitter API limit reached.';
-  } else {
-    $msg .= ' Twitter Fail Whale.';
+    if ($error->code() == 400) {
+      $msg .= ' Twitter API limit reached.';
+    } else {
+      $msg .= ' Twitter Fail Whale.';
+    }
+  }
+  else {
+    $kernel->post('logger','log',$msg.' (Unknown error from Twitter API).',$heap->{'username'});  
+
   }
   $kernel->yield('server_reply',461,'#twitter',$msg);
 }
@@ -283,42 +300,11 @@ sub tircd_login {
 		return unless($kernel->call($_[SESSION],'verify_ssl'));
 	}
 
-	# kick off specified authentication flow
-	# username oauth is (currently) reserved on twitter, can be used to pick login
-	if ($heap->{'username'} =~ /^oauth$/i) {
-		return $kernel->call($_[SESSION],'oauth_login_begin');
-	} else {
-		return $kernel->call($_[SESSION],'basicauth_login');
-	}
+  # begin oauth authentication flow
+  return $kernel->call($_[SESSION],'oauth_login_begin');
 }
 
-# Login methods
-
-# basic auth code from original tircd_login sub
-sub twitter_basic_login {
-	my ($kernel, $heap) = @_[KERNEL, HEAP];
-
-	$heap->{'nt_params'}{'username'} = $heap->{'username'};
-	$heap->{'nt_params'}{'password'} = $heap->{'password'};
-
-	#start up the twitter interface, and see if we can connect with the given NICK/PASS INFO
-	$heap->{'twitter'} = Net::Twitter::Lite->new(%{ $heap->{'nt_params'} });
-
-	unless (eval{ $heap->{'twitter'}->verify_credentials() }) {
-		$kernel->post('logger','log','Unable to login to Twitter with the supplied credentials.',$heap->{'username'});
-		$kernel->yield('server_reply',462,'Unable to login to Twitter with the supplied credentials.');
-		$kernel->yield('shutdown'); #disconnect 'em if we cant
-		return;
-	}
-
-	$kernel->post('logger','log','Successfully authenticated with Twitter.',$heap->{'username'});
-
-
-	$kernel->yield('setup_authenticated_user');
-	return 1;
-}
-
-# called by tircd_login when username set to oauth
+# oauth login flow
 sub twitter_oauth_login_begin {
 	my ($kernel, $heap) = @_[KERNEL, HEAP];
 	$heap->{'nt_params'}{'consumer_key'} = $tw_oauth_con_key;
@@ -331,16 +317,20 @@ sub twitter_oauth_login_begin {
 		$kernel->yield('shutdown');
 	}
 
-	$kernel->yield('server_reply',463,'OAuth authentication selected.');
+	$kernel->yield('server_reply',463,'OAuth authentication beginning.');
 
 	$heap->{'twitter'} = Net::Twitter::Lite->new(%{$heap->{'nt_params'}});
 
-	# if tokens in config, try to re-use
+	# load user config from disk for reusing tokens
+	if (-d $config{'storage_path'}) {
+		$heap->{'config'}   = eval {retrieve($config{'storage_path'} . '/' . $heap->{'username'} . '.config');};
+	} 
+
+	# if tokens exist in users config, attempt to re-use
 	# TODO allow users to specify no store of access tokens
-	if ($heap->{'config'}->{'access_token'} && $heap->{'config'}->{'access_token_secret'} && $heap->{'config'}->{'username'}) {
+	if ($heap->{'config'}->{'access_token'} && $heap->{'config'}->{'access_token_secret'}) {
 		$heap->{'twitter'}->access_token($heap->{'config'}->{'access_token'});
 		$heap->{'twitter'}->access_token_secret($heap->{'config'}->{'access_token_secret'});
-		$heap->{'username'} = $heap->{'config'}->{'username'};
 		return if $kernel->call($_[SESSION],'oauth_login_finish');
 	}
 
@@ -352,10 +342,11 @@ sub twitter_oauth_login_begin {
 }
 
 # direct user to pin site
+# TODO: run get_authentication_url first, in eval, check reply
 sub twitter_oauth_pin_ask {
 	my ($kernel, $heap) = @_[KERNEL,HEAP];
 	$kernel->yield('server_reply',463,"Please authorize this connection at:");
-	$kernel->yield('server_reply',463,$heap->{'twitter'}->get_authentication_url);
+	$kernel->yield('server_reply',463,$heap->{'twitter'}->get_authorization_url);
 	$kernel->yield('server_reply',463,"To continue connecting, type /stats pin <PIN>, where <PIN> is the PIN returned by the twitter authorize page.");
 	# half an hour until disconnect
 	$kernel->alarm('no_pin_received',time() + 1800);
@@ -420,13 +411,14 @@ sub tircd_setup_authenticated_user {
 
 	#load our configs from disk if they exist
 	if (-d $config{'storage_path'}) {
-		$heap->{'config'}   = eval {retrieve($config{'storage_path'} . '/' . $heap->{'username'} . '.config');};
 		$heap->{'channels'} = eval {retrieve($config{'storage_path'} . '/' . $heap->{'username'} . '.channels');};
 	} 
 
-	my @user_settings = qw(update_timeline update_directs timeline_count long_messages min_length join_silent filter_self shorten_urls convert_irc_replies);
+	my @user_settings = qw(update_timeline update_directs timeline_count long_messages min_length join_silent filter_self shorten_urls convert_irc_replies access_token access_token_secret);
 
 	# copy base config for user if prior config failed to exist/retrieve
+   # TODO: where does original heap config come from
+   # TODO: oauth token storage invalidates following
 	if (!$heap->{'config'}) {
 		my %copy = %config;
 		$heap->{'config'} = \%copy;
@@ -631,20 +623,15 @@ sub irc_pass {
 
 sub irc_nick {
   my ($kernel, $heap, $data) = @_[KERNEL, HEAP, ARG0];
+
   if ($heap->{'username'}) { #if we've already got their nick, don't let them change it
     $kernel->yield('server_reply',433,'Changing nicks once connected is not currently supported.');    
     return;
   }
 
-  if (exists $users{$data->{'params'}[0]}) {
-    $kernel->yield('server_reply',436,$data->{'params'}[0],'You are already connected to Twitter with this username.');    
-    $kernel->yield('shutdown');
-    return;
-  }
-
   $heap->{'username'} = $data->{'params'}[0]; #stash the username for later
 
-  if ($heap->{'username'} && $heap->{'password'} && !$heap->{'twitter'}) {
+  if (!$heap->{'twitter'}) {
     $kernel->yield('login');
   }
 }
@@ -652,10 +639,10 @@ sub irc_nick {
 sub irc_user {
   my ($kernel, $heap, $data) = @_[KERNEL, HEAP, ARG0];
 
-  if ($heap->{'username'} && $heap->{'password'} && !$heap->{'twitter'}) {
+  # proceed to login if we have the nick and no connection
+  if ($heap->{'username'} && !$heap->{'twitter'}) {
     $kernel->yield('login');
   }
-
 }
 
 #return the MOTD
@@ -723,7 +710,9 @@ sub irc_join {
     #restart the searching
     if ($heap->{'channels'}->{$chan}->{'topic'}) {
       $kernel->yield('user_msg','TOPIC',$heap->{'username'},$chan,$heap->{'channels'}->{$chan}->{'topic'});
-      $kernel->yield('twitter_search',$chan);
+      #  Searching is started when topic is set so this is redundant and causes frequent errors from twitter
+      # $kernel->yield('twitter_search',$chan);
+      # $kernel->post('logger','log','Started search after rejoin - ' . $heap->{'channels'}->{$chan}->{'topic'}  . ' - ' . $heap->{'channels'}->{$chan}->{'search_since_id'});
     }
   }
 }
@@ -965,67 +954,12 @@ sub irc_privmsg {
       $target = '#twitter'; #we want to force all topic changes and what not into twitter for now
     }
 
-    #shorten the URL
-    if (eval("require URI::Find;") && $heap->{'config'}->{'shorten_urls'}) {
-      my $finder = URI::Find->new(sub {
-        my $uriobj = shift;
-        my $uri = shift;
-        
-        if ($uri !~ /^http:/) {
-          return $uri;
-        }
+    if ($heap->{'config'}->{'auto_post'} == 1) {
+      $kernel->yield('twitter_post_tweet',$target, $msg);
 
-        # Do not shorten twice - heuristics!
-        if (length($uri) < 30) {
-          return $uri;
-        }
-
-        
-        my $res = $heap->{'ua'}->get("http://tinyurl.com/api-create.php?url=$uri");
-        if ($res->is_success) {
-          return $res->content;
-        } else {
-          return $uri;
-        }
-      });
-      $finder->find(\$msg);
-    }
-    
-    #Tweak the @replies
-    if ($msg =~ /^(\w+)\: / && $heap->{'config'}->{'convert_irc_replies'}) {
-      # @Olatho - changing ALL first-words that end with : to @, not only nicks on #Twitter
-      # - I sometimes reply to people that I do not follow, and want them converted as well
-      $msg =~ s/^(\w+)\: /\@$1 /;
-    }
-
-    #warn if asked and the message is too long after fucking with it
-    if ($heap->{'config'}->{'long_messages'} eq 'warn' && length($msg) > 140) {
-      $kernel->yield('server_reply',404,$target,'Your message is '.length($msg).' characters long.  Your message was not sent.');
-      return;
-    }  
-    
-    #in a channel, this an update
-    my $update = eval { $heap->{'twitter'}->update($msg) };
-    my $error = $@;
-    if (!$update && ref $error && $error->isa("Net::Twitter::Lite::Error") && $error->code() >= 400) {
-      $kernel->call($_[SESSION],'twitter_api_error','Unable to update status.',$error);
-      return;
-    } 
-
-    $msg = $update->{'text'};
-    
-    #update our own friend record
-    my $me = $kernel->call($_[SESSION],'getfriend',$heap->{'username'});
-    $me = $update->{'user'};
-    $me->{'status'} = $update;
-    $kernel->call($_[SESSION],'updatefriend',$me);
-    
-    #keep the topic updated with our latest tweet  
-    $kernel->yield('user_msg','TOPIC',$heap->{'username'},$target,"$heap->{'username'}'s last update: $msg");
-    # Olatho - Fixing duplicate topic-changes
-    $heap->{'channels'}->{$target}->{'topic'} = $msg;
-
-    $kernel->post('logger','log','Updated status.',$heap->{'username'});
+     } else {
+       $kernel->yield('handle_command',$msg);
+     }
   } else { 
     #private message, it's a dm
     my $dm = eval { $heap->{'twitter'}->new_direct_message({user => $target, text => $msg}) };
@@ -1036,6 +970,109 @@ sub irc_privmsg {
       $kernel->post('logger','log',"Sent direct message to $target",$heap->{'username'});
     }
   }    
+}
+
+sub twitter_post_tweet {
+   # throwaway target for now
+   my($kernel, $heap, $target, $msg) = @_[KERNEL, HEAP, ARG0, ARG1];
+   #shorten the URL
+   if (eval("require URI::Find;") && $heap->{'config'}->{'shorten_urls'}) {
+      my $finder = URI::Find->new(sub {
+            my $uriobj = shift;
+            my $uri = shift;
+
+            if ($uri !~ /^http:/) {
+            return $uri;
+            }
+
+            # Do not shorten twice - heuristics!
+            if (length($uri) < 30) {
+            return $uri;
+            }
+
+
+            my $res = $heap->{'ua'}->get("http://tinyurl.com/api-create.php?url=$uri");
+            if ($res->is_success) {
+            return $res->content;
+            } else {
+            return $uri;
+            }
+            });
+      $finder->find(\$msg);
+   }
+
+	#Tweak the @replies
+   if ($msg =~ /^(\w+)\: / && $heap->{'config'}->{'convert_irc_replies'}) {
+	# @Olatho - changing ALL first-words that end with : to @, not only nicks on #Twitter
+	# - I sometimes reply to people that I do not follow, and want them converted as well
+      $msg =~ s/^(\w+)\: /\@$1 /;
+   }
+
+	#warn if asked and the message is too long after fucking with it
+   if ($heap->{'config'}->{'long_messages'} eq 'warn' && length($msg) > 140) {
+      $kernel->yield('server_reply',404,$target,'Your message is '.length($msg).' characters long.  Your message was not sent.');
+      return;
+   }  
+
+	#in a channel, this an update
+   my $update = eval { $heap->{'twitter'}->update($msg) };
+   my $error = $@;
+   if (!$update && ref $error && $error->isa("Net::Twitter::Lite::Error") && $error->code() >= 400) {
+      $kernel->call($_[SESSION],'twitter_api_error','Unable to update status.',$error);
+      return;
+   } 
+
+   $msg = $update->{'text'};
+
+	#update our own friend record
+   my $me = $kernel->call($_[SESSION],'getfriend',$heap->{'username'});
+   $me = $update->{'user'};
+   $me->{'status'} = $update;
+   $kernel->call($_[SESSION],'updatefriend',$me);
+
+	#keep the topic updated with our latest tweet  
+   $kernel->yield('user_msg','TOPIC',$heap->{'username'},$target,"$heap->{'username'}'s last update: $msg");
+	# Olatho - Fixing duplicate topic-changes
+   $heap->{'channels'}->{$target}->{'topic'} = $msg;
+
+   $kernel->post('logger','log','Updated status.',$heap->{'username'});
+}
+
+sub twitter_retweet_tweet {
+   my($kernel, $heap, $tweet_id) = @_[KERNEL, HEAP, ARG0];
+
+   $kernel->post('logger','log','Retweeting status:'. $tweet_id);
+   my $rt = eval { $heap->{'twitter'}->retweet($tweet_id) };
+   my $error = $@;
+   if (!$rt && ref $error && $error->isa("Net::Twitter::Lite::Error") && $error->code() >= 400) {
+      $kernel->call($_[SESSION],'twitter_api_error','Unable to retweet status.',$error);
+      return;
+   } 
+
+   # TODO let user know if rt is successful
+}
+
+# allow user to control updating / message attribution / etc with offerbot type
+# commands
+sub irc_twitterbot_command {
+  my ($kernel, $heap, $data) = @_[KERNEL, HEAP, ARG0];
+  $kernel->post('logger','log','Received ' . $data . ' as command string');
+  if ($data =~ /^\s*!(up|update)/i) {
+    $kernel->yield('twitter_timeline');
+    $kernel->yield('twitter_direct_messages');
+  }
+
+  if ($data =~ /\s*!(t|tweet)/i) {
+    (my $msg = $data) =~ s/\s*!(t|tweet)\s*//i;
+    $kernel->yield('twitter_post_tweet','#twitter',$msg);
+  }
+
+  if ($data =~ /\s*!(rt|retweet)/i) {
+    (my $ticker_slot_selected = $data) =~ s/\s*!(rt|retweet)\s*//i;
+    my $tweet_id = $heap->{'timeline_ticker'}->{$ticker_slot_selected};
+    $kernel->post('logger','log',"Got tweet_id of $tweet_id for slot $ticker_slot_selected",$heap->{'username'});
+    $kernel->yield('twitter_retweet_tweet',$tweet_id);
+  }
 }
 
 #allow the user to follow new users by adding them to the channel
@@ -1346,6 +1383,12 @@ sub twitter_timeline {
     my $tmp = $item->{'user'};
     my $is_following = ();
     $tmp->{'status'} = $item;
+
+    # assign a ticker slot for later referencing with !reply or !retweet
+    my $ticker_slot = get_timeline_ticker_slot();
+    $heap->{'timeline_ticker'}->{$ticker_slot} = $item->{'id'};
+    $item->{'tircd_ticker_slot'} = $ticker_slot;
+    $kernel->post('logger','log','Slot ' . $ticker_slot . ' contains tweet with id: ' . $item->{'id'},$heap->{'username'}) if ($config{'debug'} >= 2);
     
     if (my $friend = $kernel->call($_[SESSION],'getfriend',$item->{'user'}->{'screen_name'})) { #if we've seen 'em before just update our cache
       $kernel->call($_[SESSION],'updatefriend',$tmp);
@@ -1365,7 +1408,7 @@ sub twitter_timeline {
         push(@{$heap->{'friends'}},$tmp);
       }
       # Join them to #twitter
-      $kernel->yield('user_msg','JOIN',$item->{'user'}->{'screen_name'},'#twitter');
+      $kernel->yield('user_msg','JOIN',$item->{'user'}->{'screen_name'},'#twitter') unless ($silent);
       # Check if they should have voice (+v)
       if ($kernel->call($_[SESSION],'getfollower',$item->{'user'}->{'screen_name'})) {
         $heap->{'channels'}->{'#twitter'}->{'names'}->{$item->{'user'}->{'screen_name'}} = '+';
@@ -1385,11 +1428,11 @@ sub twitter_timeline {
         foreach my $chan (keys %{$heap->{'channels'}}) {
           # - Send the message to the #twitter-channel if it is different from my latest update (IE different from current topic)
           if ($chan eq '#twitter' && exists $heap->{'channels'}->{$chan}->{'names'}->{$item->{'user'}->{'screen_name'}} && $item->{'text'} ne $heap->{'channels'}->{$chan}->{'topic'}) {
-            $kernel->yield('user_msg','PRIVMSG',$item->{'user'}->{'screen_name'},$chan,$item->{'text'});
+            $kernel->yield('user_msg','PRIVMSG',$item->{'user'}->{'screen_name'},$chan,'[' . $item->{'tircd_ticker_slot'} . '] ' . $item->{'text'});
           }
           # - Send the message to the other channels the user is in if the user is not "me"
           if ($chan ne '#twitter' && exists $heap->{'channels'}->{$chan}->{'names'}->{$item->{'user'}->{'screen_name'}} && $item->{'user'}->{'screen_name'} ne $heap->{'username'}) {
-            $kernel->yield('user_msg','PRIVMSG',$item->{'user'}->{'screen_name'},$chan,$item->{'text'});
+            $kernel->yield('user_msg','PRIVMSG',$item->{'user'}->{'screen_name'},$chan,'[' . $item->{'tircd_ticker_slot'} . '] ' . $item->{'text'});
           }
           # - And set topic on the #twitter channel if user is me and the topic is not already set 
           if ($chan eq '#twitter' && $item->{'user'}->{'screen_name'} eq $heap->{'username'} && $item->{'text'} ne $heap->{'channels'}->{$chan}->{'topic'}) {
@@ -1401,12 +1444,14 @@ sub twitter_timeline {
     }
     if (($is_following->{'status'}) && ($is_following->{'following'} == 0)) {
       # If we are not following them - have them part #twitter again
-      $kernel->yield('user_msg','PART',$item->{'user'}->{'screen_name'},'#twitter');
+      $kernel->yield('user_msg','PART',$item->{'user'}->{'screen_name'},'#twitter') unless ($silent);
       delete $heap->{'channels'}->{'#twitter'}->{'names'}->{$item->{'user'}->{'screen_name'}};
     }
   }
 
-  $kernel->delay('twitter_timeline',$heap->{'config'}->{'update_timeline'});
+  if ($heap->{'config'}->{'update_timeline'} > 0) {
+    $kernel->delay('twitter_timeline',$heap->{'config'}->{'update_timeline'});
+  }
 }
 
 #same as above, but for direct messages, show 'em as PRIVMSGs from the user
@@ -1453,9 +1498,29 @@ sub twitter_direct_messages {
       $kernel->yield('user_msg','PRIVMSG',$item->{'sender'}->{'screen_name'},$heap->{'username'},$item->{'text'});
     }      
   }
-
-  $kernel->delay('twitter_direct_messages',$heap->{'config'}->{'update_directs'});
+  if ($heap->{'config'}->{'update_directs'} > 0) {
+    $kernel->delay('twitter_direct_messages',$heap->{'config'}->{'update_directs'});
+  }
 }
+
+# reusable timeline ticker. 
+# ticker names as short hashes for readability/uniqueness
+# does ~3800 tweets before rebuilding list
+sub get_timeline_ticker_slot {
+   my ($kernel, $heap) = @_[KERNEL, HEAP];
+
+   # build usage order list
+   if (!defined($heap->{'timeline_ticker_unused'}) || (scalar($heap->{'timeline_ticker_unused'}) < 1)) {
+      push (@{$heap->{'timeline_ticker_unused'}},  sprintf("%x", $_)) for (shuffle(256 .. 4095));
+   }
+
+   my $ticker_slot = pop(@{$heap->{'timeline_ticker_unused'}});
+
+   return $ticker_slot;
+}
+
+
+
 
 sub twitter_search {
   my ($kernel, $heap, $chan) = @_[KERNEL, HEAP, ARG0];
@@ -1475,9 +1540,19 @@ sub twitter_search {
     $error = $@;
   }
 
+  my $delay = 30;
+
   if (!$data || $data->{'max_id'} < $heap->{'channels'}->{$chan}->{'search_since_id'} ) {
     $data = {results => []};
     $kernel->call($_[SESSION],'twitter_api_error','Unable to update search results.',$error);   
+    if ($error) {
+      if ($error->code() == 420) {
+        # We are ratelimited
+        $delay = 400;
+        $kernel->post('logger','log','We are ratelimited, waiting for '. $delay .' seconds before repeating search',$heap->{'username'});
+      }
+    }
+
   } else {
     $heap->{'channels'}->{$chan}->{'search_since_id'} = $data->{'max_id'};
     if (@{$data->{'results'}} > 0) {
@@ -1491,7 +1566,7 @@ sub twitter_search {
     }
   }
 
-  $kernel->delay_add('twitter_search',30,$chan);    
+  $kernel->delay_add('twitter_search',$delay,$chan);    
 }
 
 __END__
