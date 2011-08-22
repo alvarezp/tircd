@@ -1,3 +1,6 @@
+=== v. 2011-08-22-06 ==
+Fixing issues #81 - retweets cut off
+
 === v. 2011-08-22-05 ==
 Moving save_config out of shutdown, and adding !save-command to save config
 Also allowing !-commands even if auto_post is set to 1
