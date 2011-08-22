@@ -20,7 +20,7 @@ use List::Util 'shuffle';
 # @Olatho - issue 45
 use HTML::Entities;
 
-my $VERSION = 2011082202;
+my $VERSION = 2011082203;
 
 # consumer key/secret in the executable instead of config because it should not be edited by user
 my $tw_oauth_con_key = "4AQca4GFiWWaifUknq35Q";
@@ -348,6 +348,7 @@ sub twitter_oauth_pin_ask {
 	$kernel->yield('server_reply',463,"Please authorize this connection at:");
 	$kernel->yield('server_reply',463,$heap->{'twitter'}->get_authorization_url);
 	$kernel->yield('server_reply',463,"To continue connecting, type /stats pin <PIN>, where <PIN> is the PIN returned by the twitter authorize page.");
+	$kernel->yield('server_reply',463,"Some clients require you to use /quote stats pin <PIN>");
 	# half an hour until disconnect
 	$kernel->alarm('no_pin_received',time() + 1800);
 	return 1;
