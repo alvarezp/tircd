@@ -710,7 +710,9 @@ sub irc_join {
     #restart the searching
     if ($heap->{'channels'}->{$chan}->{'topic'}) {
       $kernel->yield('user_msg','TOPIC',$heap->{'username'},$chan,$heap->{'channels'}->{$chan}->{'topic'});
-      $kernel->yield('twitter_search',$chan);
+      #  Searching is started when topic is set so this is redundant and causes frequent errors from twitter
+      # $kernel->yield('twitter_search',$chan);
+      # $kernel->post('logger','log','Started search after rejoin - ' . $heap->{'channels'}->{$chan}->{'topic'}  . ' - ' . $heap->{'channels'}->{$chan}->{'search_since_id'});
     }
   }
 }
