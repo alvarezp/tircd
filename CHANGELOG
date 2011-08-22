@@ -1,3 +1,6 @@
+=== v. 2011-08-22-02 ==
+Fix for issue 42 - Wrong PING-reply
+
 === v. 2011-08-22 ==
 Merge of a lot of floating patches. 
 Should fix the following issues:  
