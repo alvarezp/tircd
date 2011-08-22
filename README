@@ -14,9 +14,28 @@ INSTALLATION
 
     Net::Twitter::Lite 
 
+    JSON::Any
+
+    Time::Local
+
+    File::Glob
+
+    IO::File
+
+    LWP::UserAgent
+
+    Storable
+
+    URI
+
+    List::Util
+
+    HTML::Entities
+
+
     You can install them all by running: 
 
-    "cpan -i POE POE::Filter::IRCD Net::Twitter::Lite" 
+    "cpan -i POE POE::Filter::IRCD Net::Twitter::Lite JSON::Any Time::Local File::Glob IO::File LWP::UserAgent Storable URI List::Util HTML::Entities" 
 
 USAGE
 
@@ -38,19 +57,11 @@ USAGE
 
         By default, tircd listens on localhost port 6667. 
 
-    There are two modes of authentication for connecting tircd to twitter. Basic authentication is the old style where you provide tircd with your twitter username and password, and it authenticates you against the twitter api service normally. OAuth authentication is a 3-way handshake involving where tircd will present you with an authentication URL hosted by twitter and allows you to manage tircd's access to your account through twitters OAuth system. 
-
-    The main difference between OAuth and Basic authentication is that using OAuth you never have to expose your login and password to the tircd daemon, nor worry about it sending your credentials in plain text if you are not using SSL. 
-
-    Connecting with Basic Authentication
-
         Connect to tircd, using your twitter username as your NICK. Send your twitter password with the PASS command. 
 
-    With many irc clients you can do this by issuing the command /SERVER running tircd? 6667 <your twitter password> <your twitter username>. Check your client's documentation for the appropirate syntax. 
+        With many irc clients you can do this by issuing the command /SERVER running tircd? 6667 <your twitter password> <your twitter username>. Check your client's documentation for the appropirate syntax. 
 
-    Connecting with OAuth Authentication
-
-        Connect to tircd with the username of "oauth". Tircd will make a challenege to twitter, and twitter will provide a link to tircd for you to authorize the connection. Follow the link, make sure you are logged into twitter as the user you wish to use tircd as, and then click Allow to allow the connection. Twitter will then present you with a PIN number. To complete your connection to tircd, type: /stats pin <PIN NUMBER>. On some clients that honor the irc protocol and do not expect you to be sending a stats command before connecting you may have to type: /quote stats pin <PIN NUMBER>. Tircd will then attempt to authorize the connection using the provided PIN. 
+        If this is your first connection tircd needs to be authorized to connect to twitter. This is done using OAuth.  Tircd will make a challenege to twitter, and twitter will provide a link to tircd for you to authorize the connection. Follow the link, make sure you are logged into twitter as the user you wish to use tircd as, and then click Allow to allow the connection. Twitter will then present you with a PIN number. To complete your connection to tircd, type: /stats pin <PIN NUMBER>. On some clients that honor the irc protocol and do not expect you to be sending a stats command before connecting you may have to type: /quote stats pin <PIN NUMBER>. Tircd will then attempt to authorize the connection using the provided PIN. 
 
     After connecting
 
@@ -78,13 +89,13 @@ USAGE
 
         Direct messages to you will show up as a private message from the user. 
 
-    To send a direct message, simply send a private message to the user you want to dm. 
+        To send a direct message, simply send a private message to the user you want to dm. 
 
     Getting additional information on users
 
         You can /who or /whois a user to view their Location / Bio / Website. Their last status update (and time sent) will also be returned. 
 
-    Issuing a /whois on your own user name will also provide the number of API calls that have been used in the last hour. 
+        Issuing a /whois on your own user name will also provide the number of API calls that have been used in the last hour. 
 
     Following new users
 
