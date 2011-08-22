@@ -1181,8 +1181,9 @@ sub irc_kick {
 sub irc_ping {
   my ($kernel, $heap, $data) = @_[KERNEL, HEAP, ARG0];
   my $target = $data->{'params'}[0];
-  
-  $kernel->yield('server_reply','PONG',$target);
+
+  # Olatho - Issue #42 http://code.google.com/p/tircd/issues/detail?id=42  
+  $kernel->yield('server_reply','PONG','tircd ' . $target);
 }
 
 sub irc_away {
