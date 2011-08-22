@@ -169,11 +169,7 @@ exit 0;
 sub tircd_setup {
   $_[KERNEL]->call('logger','log',"tircd $VERSION started, using config from: $config_file.");
   $_[KERNEL]->call('logger','log',"Listening on: $config{'address'}:$config{'port'}."); 
-<<<<<<< HEAD
-  if ($config{'debug'}) {
-=======
   if ($debug=1) {
->>>>>>> bbfa87d8be393b17138d846ab03257e6ac27e81b
     $_[KERNEL]->call('logger','log',"Using Net::Twitter::Lite version: $Net::Twitter::Lite::VERSION");
     $_[KERNEL]->call('logger','log',"Using LWP::UserAgent version: $LWP::UserAgent::VERSION");
     $_[KERNEL]->call('logger','log',"Using POE::Filter::IRCD version: $POE::Filter::IRCD::VERSION");
@@ -223,18 +219,12 @@ sub twitter_api_error {
     $kernel->post('logger','log',$error->message().' '.$error->code().' '.$error,'debug/twitter_api_error');
   }
 
-  if ($error) {
-    $kernel->post('logger','log',$msg.' ('.$error->code() .' from Twitter API).',$heap->{'username'});  
+  $kernel->post('logger','log',$msg.' ('.$error->code() .' from Twitter API).',$heap->{'username'});  
 
-    if ($error->code() == 400) {
-      $msg .= ' Twitter API limit reached.';
-    } else {
-      $msg .= ' Twitter Fail Whale.';
-    }
-  }
-  else {
-    $kernel->post('logger','log',$msg.' (Unknown error from Twitter API).',$heap->{'username'});  
-
+  if ($error->code() == 400) {
+    $msg .= ' Twitter API limit reached.';
+  } else {
+    $msg .= ' Twitter Fail Whale.';
   }
   $kernel->yield('server_reply',461,'#twitter',$msg);
 }
@@ -635,11 +625,7 @@ sub irc_nick {
 
   $heap->{'username'} = $data->{'params'}[0]; #stash the username for later
 
-<<<<<<< HEAD
   if (!$heap->{'twitter'}) {
-=======
-  if (  ($heap->{'username'} && $heap->{'password'} && !$heap->{'twitter'})  ||  ($heap->{'username'} =~ m/^oauth$/i)  ) {
->>>>>>> bbfa87d8be393b17138d846ab03257e6ac27e81b
     $kernel->yield('login');
   }
 }
@@ -647,12 +633,8 @@ sub irc_nick {
 sub irc_user {
   my ($kernel, $heap, $data) = @_[KERNEL, HEAP, ARG0];
 
-<<<<<<< HEAD
   # proceed to login if we have the nick and no connection
   if ($heap->{'username'} && !$heap->{'twitter'}) {
-=======
-  if (  ($heap->{'username'} && $heap->{'password'} && !$heap->{'twitter'})  ||  ($heap->{'username'} =~ m/^oauth$/i)  ) {
->>>>>>> bbfa87d8be393b17138d846ab03257e6ac27e81b
     $kernel->yield('login');
   }
 }
@@ -722,9 +704,7 @@ sub irc_join {
     #restart the searching
     if ($heap->{'channels'}->{$chan}->{'topic'}) {
       $kernel->yield('user_msg','TOPIC',$heap->{'username'},$chan,$heap->{'channels'}->{$chan}->{'topic'});
-      #  Searching is started when topic is set so this is redundant and causes frequent errors from twitter
-      # $kernel->yield('twitter_search',$chan);
-      # $kernel->post('logger','log','Started search after rejoin - ' . $heap->{'channels'}->{$chan}->{'topic'}  . ' - ' . $heap->{'channels'}->{$chan}->{'search_since_id'});
+      $kernel->yield('twitter_search',$chan);
     }
   }
 }
@@ -1400,7 +1380,7 @@ sub twitter_timeline {
     my $ticker_slot = get_timeline_ticker_slot();
     $heap->{'timeline_ticker'}->{$ticker_slot} = $item->{'id'};
     $item->{'tircd_ticker_slot'} = $ticker_slot;
-    $kernel->post('logger','log','Slot ' . $ticker_slot . ' contains tweet with id: ' . $item->{'id'},$heap->{'username'}) if ($config{'debug'} >= 2);
+    $kernel->post('logger','log','Slot ' . $ticker_slot . ' contains tweet with id: ' . $item->{'id'},$heap->{'username'}) if ($debug >= 2);
     
     if (my $friend = $kernel->call($_[SESSION],'getfriend',$item->{'user'}->{'screen_name'})) { #if we've seen 'em before just update our cache
       $kernel->call($_[SESSION],'updatefriend',$tmp);
@@ -1552,19 +1532,9 @@ sub twitter_search {
     $error = $@;
   }
 
-  my $delay = 30;
-
   if (!$data || $data->{'max_id'} < $heap->{'channels'}->{$chan}->{'search_since_id'} ) {
     $data = {results => []};
     $kernel->call($_[SESSION],'twitter_api_error','Unable to update search results.',$error);   
-    if ($error) {
-      if ($error->code() == 420) {
-        # We are ratelimited
-        $delay = 400;
-        $kernel->post('logger','log','We are ratelimited, waiting for '. $delay .' seconds before repeating search',$heap->{'username'});
-      }
-    }
-
   } else {
     $heap->{'channels'}->{$chan}->{'search_since_id'} = $data->{'max_id'};
     if (@{$data->{'results'}} > 0) {
@@ -1578,7 +1548,7 @@ sub twitter_search {
     }
   }
 
-  $kernel->delay_add('twitter_search',$delay,$chan);    
+  $kernel->delay_add('twitter_search',30,$chan);    
 }
 
 __END__
