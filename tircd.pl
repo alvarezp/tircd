@@ -1540,9 +1540,19 @@ sub twitter_search {
     $error = $@;
   }
 
+  my $delay = 30;
+
   if (!$data || $data->{'max_id'} < $heap->{'channels'}->{$chan}->{'search_since_id'} ) {
     $data = {results => []};
     $kernel->call($_[SESSION],'twitter_api_error','Unable to update search results.',$error);   
+    if ($error) {
+      if ($error->code() == 420) {
+        # We are ratelimited
+        $delay = 400;
+        $kernel->post('logger','log','We are ratelimited, waiting for '. $delay .' seconds before repeating search',$heap->{'username'});
+      }
+    }
+
   } else {
     $heap->{'channels'}->{$chan}->{'search_since_id'} = $data->{'max_id'};
     if (@{$data->{'results'}} > 0) {
@@ -1556,7 +1566,7 @@ sub twitter_search {
     }
   }
 
-  $kernel->delay_add('twitter_search',30,$chan);    
+  $kernel->delay_add('twitter_search',$delay,$chan);    
 }
 
 __END__
