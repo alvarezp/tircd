@@ -169,7 +169,11 @@ exit 0;
 sub tircd_setup {
   $_[KERNEL]->call('logger','log',"tircd $VERSION started, using config from: $config_file.");
   $_[KERNEL]->call('logger','log',"Listening on: $config{'address'}:$config{'port'}."); 
+<<<<<<< HEAD
   if ($config{'debug'}) {
+=======
+  if ($debug=1) {
+>>>>>>> bbfa87d8be393b17138d846ab03257e6ac27e81b
     $_[KERNEL]->call('logger','log',"Using Net::Twitter::Lite version: $Net::Twitter::Lite::VERSION");
     $_[KERNEL]->call('logger','log',"Using LWP::UserAgent version: $LWP::UserAgent::VERSION");
     $_[KERNEL]->call('logger','log',"Using POE::Filter::IRCD version: $POE::Filter::IRCD::VERSION");
@@ -631,7 +635,11 @@ sub irc_nick {
 
   $heap->{'username'} = $data->{'params'}[0]; #stash the username for later
 
+<<<<<<< HEAD
   if (!$heap->{'twitter'}) {
+=======
+  if (  ($heap->{'username'} && $heap->{'password'} && !$heap->{'twitter'})  ||  ($heap->{'username'} =~ m/^oauth$/i)  ) {
+>>>>>>> bbfa87d8be393b17138d846ab03257e6ac27e81b
     $kernel->yield('login');
   }
 }
@@ -639,8 +647,12 @@ sub irc_nick {
 sub irc_user {
   my ($kernel, $heap, $data) = @_[KERNEL, HEAP, ARG0];
 
+<<<<<<< HEAD
   # proceed to login if we have the nick and no connection
   if ($heap->{'username'} && !$heap->{'twitter'}) {
+=======
+  if (  ($heap->{'username'} && $heap->{'password'} && !$heap->{'twitter'})  ||  ($heap->{'username'} =~ m/^oauth$/i)  ) {
+>>>>>>> bbfa87d8be393b17138d846ab03257e6ac27e81b
     $kernel->yield('login');
   }
 }
