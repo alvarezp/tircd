@@ -1,4 +1,7 @@
-=== v. 2011-08-22-02 ==
+=== v. 2011-08-22-04 ==
+Fixing problem with global $debug - actually making tircd.pl start again
+
+=== v. 2011-08-22-03 ==
 Add note about /quote stats pin <PIN>
 
 === v. 2011-08-22-02 ==
