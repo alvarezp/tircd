@@ -219,12 +219,18 @@ sub twitter_api_error {
     $kernel->post('logger','log',$error->message().' '.$error->code().' '.$error,'debug/twitter_api_error');
   }
 
-  $kernel->post('logger','log',$msg.' ('.$error->code() .' from Twitter API).',$heap->{'username'});  
+  if ($error) {
+    $kernel->post('logger','log',$msg.' ('.$error->code() .' from Twitter API).',$heap->{'username'});  
 
-  if ($error->code() == 400) {
-    $msg .= ' Twitter API limit reached.';
-  } else {
-    $msg .= ' Twitter Fail Whale.';
+    if ($error->code() == 400) {
+      $msg .= ' Twitter API limit reached.';
+    } else {
+      $msg .= ' Twitter Fail Whale.';
+    }
+  }
+  else {
+    $kernel->post('logger','log',$msg.' (Unknown error from Twitter API).',$heap->{'username'});  
+
   }
   $kernel->yield('server_reply',461,'#twitter',$msg);
 }
