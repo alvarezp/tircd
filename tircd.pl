@@ -169,7 +169,7 @@ exit 0;
 sub tircd_setup {
   $_[KERNEL]->call('logger','log',"tircd $VERSION started, using config from: $config_file.");
   $_[KERNEL]->call('logger','log',"Listening on: $config{'address'}:$config{'port'}."); 
-  if ($debug=1) {
+  if ($config{'debug'}) {
     $_[KERNEL]->call('logger','log',"Using Net::Twitter::Lite version: $Net::Twitter::Lite::VERSION");
     $_[KERNEL]->call('logger','log',"Using LWP::UserAgent version: $LWP::UserAgent::VERSION");
     $_[KERNEL]->call('logger','log',"Using POE::Filter::IRCD version: $POE::Filter::IRCD::VERSION");
@@ -1390,7 +1390,7 @@ sub twitter_timeline {
     my $ticker_slot = get_timeline_ticker_slot();
     $heap->{'timeline_ticker'}->{$ticker_slot} = $item->{'id'};
     $item->{'tircd_ticker_slot'} = $ticker_slot;
-    $kernel->post('logger','log','Slot ' . $ticker_slot . ' contains tweet with id: ' . $item->{'id'},$heap->{'username'}) if ($debug >= 2);
+    $kernel->post('logger','log','Slot ' . $ticker_slot . ' contains tweet with id: ' . $item->{'id'},$heap->{'username'}) if ($config{'debug'} >= 2);
     
     if (my $friend = $kernel->call($_[SESSION],'getfriend',$item->{'user'}->{'screen_name'})) { #if we've seen 'em before just update our cache
       $kernel->call($_[SESSION],'updatefriend',$tmp);
