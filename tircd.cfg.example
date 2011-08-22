@@ -74,3 +74,5 @@ shorten_urls 1
 #If set tircd will concert <username>: <msg> replies into @<username> <msg> replies so you can use your irc client's tab complettion to send twitter apis
 #Currently '<username>: ' must be at the start of the message, and the user must be in #twitter for this to work.
 convert_irc_replies 0
+# If set, tircd will send anything you type in a channel to twitter as an update.  If set to "0" or not set, you will have to prepend updates with "!t" or "!tweet"
+auto_post 0

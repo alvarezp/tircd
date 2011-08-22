@@ -20,7 +20,7 @@ use List::Util 'shuffle';
 # @Olatho - issue 45
 use HTML::Entities;
 
-my $VERSION = 2011082204;
+my $VERSION = 2011082205;
 
 # consumer key/secret in the executable instead of config because it should not be edited by user
 my $tw_oauth_con_key = "4AQca4GFiWWaifUknq35Q";
@@ -143,14 +143,16 @@ POE::Component::Server::TCP->new(
     updatefriend => \&tircd_updatefriend,
     getfollower => \&tircd_getfollower,
 
-	 verify_ssl => \&tircd_verify_ssl,
-	 basicauth_login => \&twitter_basic_login,
-	 setup_authenticated_user => \&tircd_setup_authenticated_user,
-	 oauth_login_begin => \&twitter_oauth_login_begin,
-	 oauth_login_finish => \&twitter_oauth_login_finish,
-	 oauth_pin_ask => \&twitter_oauth_pin_ask,
-	 oauth_pin_entry => \&twitter_oauth_pin_entry,
-	 no_pin_received => \&tircd_oauth_no_pin_received,
+    verify_ssl => \&tircd_verify_ssl,
+    basicauth_login => \&twitter_basic_login,
+    setup_authenticated_user => \&tircd_setup_authenticated_user,
+    oauth_login_begin => \&twitter_oauth_login_begin,
+    oauth_login_finish => \&twitter_oauth_login_finish,
+    oauth_pin_ask => \&twitter_oauth_pin_ask,
+    oauth_pin_entry => \&twitter_oauth_pin_entry,
+    no_pin_received => \&tircd_oauth_no_pin_received,
+
+    save_config => \&tircd_save_config,
 
     
   },
@@ -415,7 +417,7 @@ sub tircd_setup_authenticated_user {
 		$heap->{'channels'} = eval {retrieve($config{'storage_path'} . '/' . $heap->{'username'} . '.channels');};
 	} 
 
-	my @user_settings = qw(update_timeline update_directs timeline_count long_messages min_length join_silent filter_self shorten_urls convert_irc_replies access_token access_token_secret);
+	my @user_settings = qw(update_timeline update_directs timeline_count long_messages min_length join_silent filter_self shorten_urls convert_irc_replies access_token access_token_secret auto_post);
 
 	# copy base config for user if prior config failed to exist/retrieve
    # TODO: where does original heap config come from
@@ -536,11 +538,19 @@ sub tircd_cleanup {
   $kernel->delay('twitter_timeline');  
   $kernel->delay('twitter_direct_messages');
 
+  $kernel->yield('save_config');
+
+  $kernel->yield('shutdown');
+}
+
+# Save config
+sub tircd_save_config {
+  my ($kernel, $heap) = @_[KERNEL, HEAP];
   # if storage_path directory doesn't exist, attempt to create
   unless ( -e $config{'storage_path'} && -d $config{'storage_path'} ) {
-	  unless (mkdir ($config{'storage_path'})) {
-		  $kernel->post('logger','log','Was unable to create storage_path at ' . $config{'storage_path'} . ' .' . $!);  
-		}
+    unless (mkdir ($config{'storage_path'})) {
+      $kernel->post('logger','log','Was unable to create storage_path at ' . $config{'storage_path'} . ' .' . $!);  
+    }
   }
   
   #if defined, save our data for next time
@@ -551,10 +561,10 @@ sub tircd_cleanup {
     }
     eval {store($heap->{'config'},$config{'storage_path'} . '/' . $heap->{'username'} . '.config');};
     eval {store($heap->{'channels'},$config{'storage_path'} . '/' . $heap->{'username'} . '.channels');};
+    $kernel->post('logger','log','Saving configuration.',$heap->{'username'});  
   } else {
     $kernel->post('logger','log','storage_path is not set or is not writable, not saving configuration.',$heap->{'username'});  
   }
-  $kernel->yield('shutdown');
 }
 
 
@@ -956,11 +966,17 @@ sub irc_privmsg {
     }
 
     if ($heap->{'config'}->{'auto_post'} == 1) {
-      $kernel->yield('twitter_post_tweet',$target, $msg);
+      # We want to handle !-commands even if auto_post is set to true
+      if ($msg =~ /^\s*!/i) {
+        $kernel->yield('handle_command',$msg);
+      }
+      else {
+        $kernel->yield('twitter_post_tweet',$target, $msg);
+      }
 
-     } else {
-       $kernel->yield('handle_command',$msg);
-     }
+    } else {
+      $kernel->yield('handle_command',$msg);
+    }
   } else { 
     #private message, it's a dm
     my $dm = eval { $heap->{'twitter'}->new_direct_message({user => $target, text => $msg}) };
@@ -1063,16 +1079,19 @@ sub irc_twitterbot_command {
     $kernel->yield('twitter_direct_messages');
   }
 
-  if ($data =~ /\s*!(t|tweet)/i) {
+  if ($data =~ /^\s*!(t|tweet)/i) {
     (my $msg = $data) =~ s/\s*!(t|tweet)\s*//i;
     $kernel->yield('twitter_post_tweet','#twitter',$msg);
   }
 
-  if ($data =~ /\s*!(rt|retweet)/i) {
+  if ($data =~ /^\s*!(rt|retweet)/i) {
     (my $ticker_slot_selected = $data) =~ s/\s*!(rt|retweet)\s*//i;
     my $tweet_id = $heap->{'timeline_ticker'}->{$ticker_slot_selected};
     $kernel->post('logger','log',"Got tweet_id of $tweet_id for slot $ticker_slot_selected",$heap->{'username'});
     $kernel->yield('twitter_retweet_tweet',$tweet_id);
+  }
+  if ($data =~ /^\s*!(save)/i) {
+    $kernel->yield('save_config');
   }
 }
 

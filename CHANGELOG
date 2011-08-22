@@ -1,3 +1,8 @@
+=== v. 2011-08-22-05 ==
+Moving save_config out of shutdown, and adding !save-command to save config
+Also allowing !-commands even if auto_post is set to 1
+Adding auto_post to config files
+
 === v. 2011-08-22-04 ==
 Fixing problem with global $debug - actually making tircd.pl start again
 
