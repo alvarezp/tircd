@@ -74,7 +74,8 @@ Once connected JOIN #twitter to get started.  The channel #twitter is where you 
 
 =item Updating your status
 
-To update your status on twitter, simply send a message to the #twitter channel.  The server will keep your most recent update in the topic at all times.
+To update your status on twitter, simply send a message starting with "!t " to the #twitter channel.  The server will keep your most recent update in the topic at all times.
+If you want to auto send everything you type in the #twitter channel, you can set the config option "auto_post" to 1. Either in tircd.conf or via the /stats command
 
 =item Getting your friend's status
 
@@ -123,6 +124,16 @@ If you want to create a channel with just a subset of the people you follow, you
 =item Search
 
 If you want to have updated search results for a specific term delivered, you can /join <any channel> then set the /topic for the channnel to your search query.  Results that match that query will be sent to that channel. The /topic can be almost anything supported by the twitter search (see http://search.twitter.com/operators for exmaples).  Using the 'near' option is not currently supported.
+
+=item User config
+Certain options are changeable at runtime and set per user. To see a list of options and their current values simply send an "/stats m" command to the server.
+
+=item Other commands
+tircd supports a few additional "bot-like" commands:
+C<!t[weet]> - Post a tweet
+C<![rt|retweet] <id>> - Retweet the post with ID <id> (displayed first in your timeline)
+C<!u[pdate]> - Fetch new messages from twitter (do not wait for next auto update)
+C<!save> - Save User.config  
 
 =back
 

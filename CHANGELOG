@@ -1,3 +1,13 @@
+=== v. 2011-08-23-01 ==
+FEATURES
+* Make config-options to expand URLs and Real Names
+* Auto save User.config on change
+* Giving user at least a notice that RTs are posted successfully
+
+FIXES
+* Fix bug where you would join and part #twitter if you mention yourself in a tweet or sent a DM to yourself
+* Fix issues #87 - Links have "rel=nofollow" in them
+
 === v. 2011-08-22-06 ==
 Fixing issues #81 - retweets cut off
 
