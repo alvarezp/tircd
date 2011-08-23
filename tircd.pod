@@ -132,9 +132,13 @@ Certain options are changeable at runtime and set per user. To see a list of opt
 =item Other commands
 
 tircd supports a few additional "bot-like" commands:
+
 C<!t[weet]> - Post a tweet
+
 C<![rt|retweet] <id>> - Retweet the post with ID <id> (displayed first in your timeline)
+
 C<!u[pdate]> - Fetch new messages from twitter (do not wait for next auto update)
+
 C<!save> - Save User.config  
 
 =back
