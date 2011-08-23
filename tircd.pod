@@ -126,9 +126,11 @@ If you want to create a channel with just a subset of the people you follow, you
 If you want to have updated search results for a specific term delivered, you can /join <any channel> then set the /topic for the channnel to your search query.  Results that match that query will be sent to that channel. The /topic can be almost anything supported by the twitter search (see http://search.twitter.com/operators for exmaples).  Using the 'near' option is not currently supported.
 
 =item User config
+
 Certain options are changeable at runtime and set per user. To see a list of options and their current values simply send an "/stats m" command to the server.
 
 =item Other commands
+
 tircd supports a few additional "bot-like" commands:
 C<!t[weet]> - Post a tweet
 C<![rt|retweet] <id>> - Retweet the post with ID <id> (displayed first in your timeline)
