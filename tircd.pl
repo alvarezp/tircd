@@ -20,6 +20,9 @@ use List::Util 'shuffle';
 # @Olatho - issue 45
 use HTML::Entities;
 
+use Digest::SHA1  qw(sha1_base64);
+
+
 my $VERSION = 2011082301;
 
 # consumer key/secret in the executable instead of config because it should not be edited by user
@@ -327,10 +330,19 @@ sub twitter_oauth_login_begin {
 	if (-d $config{'storage_path'}) {
 		$heap->{'config'}   = eval {retrieve($config{'storage_path'} . '/' . $heap->{'username'} . '.config');};
 	} 
-
 	# if tokens exist in users config, attempt to re-use
 	# TODO allow users to specify no store of access tokens
 	if ($heap->{'config'}->{'access_token'} && $heap->{'config'}->{'access_token_secret'}) {
+		# If password is set in User.conf - check that is is correct
+		# Currently just checking the length to see that it is a SHA1-sum but that is a bit silly as we could change algorithm
+		if (length($heap->{'config'}->{'password'}) == 27) {
+			if (sha1_base64($heap->{'password'}) ne $heap->{'config'}->{'password'}) {
+				$kernel->post('logger','log','Connection refused with the supplied credentials.',$heap->{'username'});
+				$kernel->yield('server_reply',464,'Connection with the supplied credentials.');
+				$kernel->yield('shutdown'); #disconnect 'em if we cant
+				return;
+			}
+		}
 		$heap->{'twitter'}->access_token($heap->{'config'}->{'access_token'});
 		$heap->{'twitter'}->access_token_secret($heap->{'config'}->{'access_token_secret'});
 		return if $kernel->call($_[SESSION],'oauth_login_finish');
@@ -417,7 +429,7 @@ sub tircd_setup_authenticated_user {
 		$heap->{'channels'} = eval {retrieve($config{'storage_path'} . '/' . $heap->{'username'} . '.channels');};
 	} 
 
-	my @user_settings = qw(update_timeline update_directs timeline_count long_messages min_length join_silent filter_self shorten_urls convert_irc_replies access_token access_token_secret auto_post show_realname expand_urls);
+	my @user_settings = qw(update_timeline update_directs timeline_count long_messages min_length join_silent filter_self shorten_urls convert_irc_replies access_token access_token_secret auto_post show_realname expand_urls password);
 
 	# copy base config for user if prior config failed to exist/retrieve
    # TODO: where does original heap config come from
@@ -434,6 +446,15 @@ sub tircd_setup_authenticated_user {
 	foreach my $k (keys %{$heap->{'config'}}) {
 		if (!grep($_ eq $k, @user_settings)) {
 			delete $heap->{'config'}->{$k};
+		}
+	}
+
+	# If the client has connected with a password, and is authorized by twitter, 
+	# encrypt and store password if it is not already stored
+	if ($heap->{'password'}) {
+		if ($heap->{'config'}->{'password'} ne sha1_base64($heap->{'password'})) {
+        		$heap->{'config'}->{'password'} = sha1_base64($heap->{'password'});
+  			$kernel->yield('save_config');
 		}
 	}
 
@@ -920,11 +941,16 @@ sub irc_stats {
     }
     $kernel->yield('server_reply',212,$key,"Use '/stats <key> <value>' to change a setting.");
     $kernel->yield('server_reply',212,$key,"Example: /stats join_silent 1");
-   } elsif ($key =~ m/pin/i) {
-		$kernel->yield('oauth_pin_entry',$val);
-		return;
-	} else {
+  } elsif ($key =~ m/pin/i) {
+    $kernel->yield('oauth_pin_entry',$val);
+    return;
+  } else {
     if (exists $heap->{'config'}->{$key}) {
+      # Allow user to change password via stats-command
+      # Not sure we really want to do this...
+      if (($key =~ m/password/i) && ($val)) {
+        $val = sha1_base64($val);
+      }
       $heap->{'config'}->{$key} = $val;
       $kernel->yield('server_reply',212,$key,"set to $val");
       $kernel->yield('save_config');

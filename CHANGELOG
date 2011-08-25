@@ -1,3 +1,7 @@
+=== v. 2011-08-25-01 ==
+EXPERIMENTAL
+* Enable password protection of tircd accounts
+
 === v. 2011-08-23-01 ==
 FEATURES
 * Make config-options to expand URLs and Real Names
