@@ -1,4 +1,4 @@
-Welcome to tircd v0.10! Still beta, please report bugs!
+Welcome to tircd! Still beta, mind the bumps.
 
 /join #twitter to get started!  
 

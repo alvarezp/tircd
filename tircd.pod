@@ -16,9 +16,29 @@ L<POE::Filter::IRCD>
 
 L<Net::Twitter::Lite>
 
+L<JSON::Any>
+
+L<Time::Local>
+
+L<File::Glob>
+
+L<IO::File>
+
+L<LWP::UserAgent>
+
+L<Storable>
+
+L<URI>
+
+L<List::Util>
+
+L<HTML::Entities>
+
+
+
 You can install them all by running:
 
-C<cpan -i POE POE::Filter::IRCD Net::Twitter::Lite>
+C<cpan -i POE POE::Filter::IRCD Net::Twitter::Lite JSON::Any Time::Local File::Glob IO::File LWP::UserAgent Storable URI List::Util HTML::Entities>
 
 =head1 USAGE
 
@@ -38,32 +58,57 @@ F</etc/tircd.cfg>
 
 You can specify an alternate path to the configuration file on the commandline if you want to keep the configuration in another location.
 
-=item Connecting
+=back
+
+=head2 Connecting
 
 By default, tircd listens on localhost port 6667.
 
-There are two modes of authentication for connecting tircd to twitter. Basic authentication is the old style where you provide tircd with your twitter username and password, and it authenticates you against the twitter api service normally. OAuth authentication is a 3-way handshake involving where tircd will present you with an authentication URL hosted by twitter and allows you to manage tircd's access to your account through twitters OAuth system.
+Connect to tircd, using your twitter username as your NICK. Send your twitter password with the PASS command. 
 
-The main difference between OAuth and Basic authentication is that using OAuth you never have to expose your login and password to the tircd daemon, nor worry about it sending your credentials in plain text if you are not using SSL.
+With many irc clients you can do this by issuing the command /SERVER running tircd? 6667 <your twitter password> <your twitter username>. Check your client's documentation for the appropirate syntax. 
 
-=item Connecting with Basic Authentication
+If this is your first connection tircd needs to be authorized to connect to twitter. This is done using OAuth.  Tircd will make a challenege to twitter, and twitter will provide a link to tircd for you to authorize the connection. Follow the link, make sure you are logged into twitter as the user you wish to use tircd as, and then click Allow to allow the connection. Twitter will then present you with a PIN number. To complete your connection to tircd, type: /stats pin <PIN NUMBER>. On some clients that honor the irc protocol and do not expect you to be sending a stats command before connecting you may have to type: /quote stats pin <PIN NUMBER>. Tircd will then attempt to authorize the connection using the provided PIN. 
 
-Connect to tircd, using your twitter username as your NICK. Send your twitter password with the PASS command.
+=over
 
-With many irc clients you can do this by issuing the command /SERVER [hostname running tircd] 6667 <your twitter password> <your twitter username>.   Check your client's documentation for the appropirate syntax.
+=item Connecting with password
 
-=item Connecting with OAuth Authentication
+If your tircd installation is running in a shared environment (etiher listening on the localhost address on a shared computer, or listening on a public IP) you might want to password protect your account, or anyone can access your twitter account knowing the server address and your twitter username.
+B<Your tircd-password do NOT need to be (and should not be!) the same as your twitter password.>
 
-Connect to tircd with the username of "oauth". Tircd will make a challenege to twitter, and twitter will provide a link to tircd for you to authorize the connection. Follow the link, make sure you are logged into twitter as the user you wish to use tircd as, and then click Allow to allow the connection. Twitter will then present you with a PIN number. To complete your connection to tircd, type: /stats pin <PIN NUMBER>. On some clients that honor the irc protocol and do not expect you to be sending a stats command before connecting you may have to type: /quote stats pin <PIN NUMBER>. Tircd will then attempt to authorize the connection using the provided PIN.
+Tircd supports password protection in the following way.
 
+* The first time you connect to tircd with a new Username, no password checking is done.  You are presented with the OAuth URL, and need to log in to twitter on the web, and enter the PIN as described above.
 
-=item After connecting
+* When the PIN is accepted, IF your client connected with a password set, this password is encrypted (hashed) and saved along with your twitter access-tokens.
+
+* Next time you connect, tircd will first check to see if a password is saved in your Username.config, and comapre it with the one your client sends.
+
+* If they match, your connecton is allowed, and tircd continue to verify the OAuth tokens with twitter.
+
+* If they don't match, the client is disconnected with an error message.
+
+* If you want to change your password, or did not set one on your first connection, you can do so after you have connected to tircd with a simple "/stats password <password>"
+
+* Be aware that if you do this, you will also have to make sure your client uses the same password next time you connect to tircd.
+
+* If you want to remove the password, simply issue a "/stats password" without any password set.
+
+There is currently no way of regaining access to your account if you forget it.  To reset your tircd password, you will have to remove your Username.config and authorize with twitter using OAuth and a PIN again.
+
+=back
+
+=head2 After connecting
 
 Once connected JOIN #twitter to get started.  The channel #twitter is where you will perform most opertions
 
+=over
+
 =item Updating your status
 
-To update your status on twitter, simply send a message to the #twitter channel.  The server will keep your most recent update in the topic at all times.
+To update your status on twitter, simply send a message starting with "!t " to the #twitter channel.  The server will keep your most recent update in the topic at all times.
+If you want to auto send everything you type in the #twitter channel, you can set the config option "auto_post" to 1. Either in tircd.conf or via the /stats command
 
 =item Getting your friend's status
 
@@ -74,7 +119,6 @@ When users you follow update their status, it will be sent to the channel as a m
 =item Listing the users you follow
 
 Each user you follow will be in the #twitter channel.  If you follow a new user outside of tircd, that user will join the channel the first time they update their status.  People who follow you back are given voice (+v) to indicate that fact.
-
 
 =item Direct Messages
 
@@ -113,11 +157,31 @@ If you want to create a channel with just a subset of the people you follow, you
 
 If you want to have updated search results for a specific term delivered, you can /join <any channel> then set the /topic for the channnel to your search query.  Results that match that query will be sent to that channel. The /topic can be almost anything supported by the twitter search (see http://search.twitter.com/operators for exmaples).  Using the 'near' option is not currently supported.
 
+=item User config
+
+Certain options are changeable at runtime and set per user. To see a list of options and their current values simply send an "/stats m" command to the server.
+
+These options are saved in a file with the name C<Username.config> (where Username is your twitter username) located in a directory set in the global config file (default: /tmp/tricd)
+
+=item Other commands
+
+tircd supports a few additional "bot-like" commands:
+
+C<!t[weet]> - Post a tweet
+
+C<< ![rt|retweet] <id> >> - Retweet the post with ID <id> (displayed first in your timeline)
+
+C<!u[pdate]> - Fetch new messages from twitter (do not wait for next auto update)
+
+C<!save> - Save User.config  
+
 =back
 
 =head1 AUTHOR
 
 Chris Nelson <cnelson@crazybrain.org>
+Tim Sogard <tircd@timsogard.com>
+Ola Thoresen <olen@inni.no>
 
 =head1 LICENSE
 
@@ -130,3 +194,22 @@ L<POE>
 L<POE::Filter::IRCD>
 
 L<Net::Twitter::Lite>
+
+L<JSON::Any>
+
+L<Time::Local>
+
+L<File::Glob>
+
+L<IO::File>
+
+L<LWP::UserAgent>
+
+L<Storable>
+
+L<URI>
+
+L<List::Util>
+
+L<HTML::Entities>
+

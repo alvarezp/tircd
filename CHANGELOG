@@ -1,3 +1,56 @@
+=== v. 2011-08-25-01 ==
+EXPERIMENTAL
+* Enable password protection of tircd accounts
+
+=== v. 2011-08-23-01 ==
+FEATURES
+* Make config-options to expand URLs and Real Names
+* Auto save User.config on change
+* Giving user at least a notice that RTs are posted successfully
+
+FIXES
+* Fix bug where you would join and part #twitter if you mention yourself in a tweet or sent a DM to yourself
+* Fix issues #87 - Links have "rel=nofollow" in them
+
+=== v. 2011-08-22-06 ==
+Fixing issues #81 - retweets cut off
+
+=== v. 2011-08-22-05 ==
+Moving save_config out of shutdown, and adding !save-command to save config
+Also allowing !-commands even if auto_post is set to 1
+Adding auto_post to config files
+
+=== v. 2011-08-22-04 ==
+Fixing problem with global $debug - actually making tircd.pl start again
+
+=== v. 2011-08-22-03 ==
+Add note about /quote stats pin <PIN>
+
+=== v. 2011-08-22-02 ==
+Fix for issue 42 - Wrong PING-reply
+
+=== v. 2011-08-22 ==
+Merge of a lot of floating patches. 
+Should fix the following issues:  
+#22   	Add @ in front of nicks present in the channel 
+#42 	No response to client PING 
+#50	&amp;, &quot; and other HTML entities are not decoded 
+#52	direct message with unicode characters kills tircd 
+#54 	exit on broken pipe 
+#58	Make it possible to send an actual reply with in_reply_to metadata 
+#62	(Not a but in tircd)
+#65	IRCd dies when attempting to connect. 
+#68	tircd search channels are reset when i send a tweet 
+#76  	Fix "filter_self" 
+#81	Retweets cut off 
+#82	Add some method for replying to specific tweets 
+#84	Auth fails 
+#85	tirc v0.11 dies unexpectly 
+#90	Unicode character in tweet is messed up 
+#92	Cannot read direct messages 
+#94	Patches to Drags
+
+
 === v.10 - 2010-02-22 ===
 
 FEATURES:
