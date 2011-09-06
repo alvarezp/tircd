@@ -343,8 +343,8 @@ sub twitter_oauth_login_begin {
 		if (length($heap->{'config'}->{'password'}) == 27) {
 			if (sha1_base64($heap->{'password'}) ne $heap->{'config'}->{'password'}) {
 				$kernel->post('logger','log','Connection refused with the supplied credentials.',$heap->{'username'});
-				$kernel->yield('server_reply',464,'Connection with the supplied credentials.');
-				$kernel->yield('shutdown'); #disconnect 'em if we cant
+				$kernel->yield('server_reply',464,'Connection refused with the supplied credentials.');
+				$kernel->yield('shutdown'); #disconnect 'em if we cant verify password
 				return;
 			}
 		}
