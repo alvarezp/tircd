@@ -139,6 +139,8 @@ POE::Component::Server::TCP->new(
     twitter_reply_to_tweet => \&twitter_reply_to_tweet,
     twitter_send_dm => \&twitter_send_dm,
     twitter_conversation => \&twitter_conversation,
+    twitter_conversation_r => \&twitter_conversation_r,
+    twitter_conversation_related => \&twitter_conversation_related,
     twitter_api_error => \&twitter_api_error,    
     twitter_timeline => \&twitter_timeline,
     twitter_direct_messages => \&twitter_direct_messages,
@@ -1890,8 +1892,28 @@ sub tircd_get_message_parts {
 }
     
 sub twitter_conversation {
-  # use Data::TreeDumper;
-  # $Data::TreeDumper::Useascii = 0;
+  # TODO - store the complete conversation in a temp-variable, 
+  # revere it and display it in the proper order
+  my($kernel, $heap, $tweet_id) = @_[KERNEL, HEAP, ARG0];
+  $kernel->post('logger','log','Getting related from status: '. $tweet_id);
+  my $status = eval { $heap->{'twitter'}->show_status($tweet_id) };
+  my $error = $@;
+  if ($error) {
+    $kernel->call($_[SESSION],'twitter_api_error','Unable to get related posts.',$error);   
+    return;
+  }
+  my $chan = '#twitter';
+  if ($status->{'in_reply_to_status_id'}) {
+    $kernel->yield('server_reply',304,'Conversation for ' . $tweet_id);
+    $kernel->yield('user_msg','PRIVMSG',$status->{'user'}->{'screen_name'},$chan,$status->{'text'});
+    $kernel->yield('twitter_conversation_r', $status->{'in_reply_to_status_id'});
+  }
+  else {
+    $kernel->yield('twitter_conversation_related', $tweet_id);
+  }      
+}
+
+sub twitter_conversation_related {
   my($kernel, $heap, $tweet_id) = @_[KERNEL, HEAP, ARG0];
   $kernel->post('logger','log','Getting related from status: '. $tweet_id);
   my $related = eval { $heap->{'twitter'}->related_results($tweet_id) };
@@ -1899,21 +1921,41 @@ sub twitter_conversation {
   if ($error) {
     $kernel->call($_[SESSION],'twitter_api_error','Unable to get related posts.',$error);   
   }
-  # $kernel->post('logger','log', DumpTree($related, 'Related'));
-  # $kernel->post('logger','log', DumpTree(@{$related}[0], 'Related 0'));
   my $chan = '#twitter';
   if ((@{$related}[0]) && (@{@{$related}[0]->{'results'}} > 0)) {
-    $kernel->yield('server_reply',304,'Conversation for ' . $tweet_id);
-    # $kernel->post('logger','log','Received '.@{@{$related}[0]->{'results'}}.' related results from Twitter.',$heap->{'username'});
+    $kernel->yield('server_reply',304,'Related posts for ' . $tweet_id);
     foreach my $result (@{@{$related}[0]->{'results'}}) {
       $kernel->yield('user_msg','PRIVMSG',$result->{'value'}->{'user'}->{'screen_name'},$chan,$result->{'value'}->{'text'});
     }
-    $kernel->yield('server_reply',304,'End of conversation');
+    $kernel->yield('server_reply',304,'End of related posts');
   }
   else {
-      $kernel->yield('server_reply',404,'Cannot find conversation for ' . $tweet_id);
+    $kernel->yield('server_reply',404,'Cannot find related posts for ' . $tweet_id);
   }      
 }
+
+
+sub twitter_conversation_r {
+  my($kernel, $heap, $tweet_id) = @_[KERNEL, HEAP, ARG0];
+  my $status = eval { $heap->{'twitter'}->show_status($tweet_id) };
+  my $error = $@;
+  if ($error) {
+    $kernel->call($_[SESSION],'twitter_api_error','Unable to get related posts.',$error);   
+    return;
+  }
+  my $chan = '#twitter';
+  if ($status->{'text'}) {
+    $kernel->yield('user_msg','PRIVMSG',$status->{'user'}->{'screen_name'},$chan,$status->{'text'});
+  }
+  if ($status->{'in_reply_to_status_id'}) {
+    $kernel->yield('twitter_conversation_r', $status->{'in_reply_to_status_id'});
+  }
+  else {
+    $kernel->yield('server_reply',304,'End of conversation');
+  }
+
+}
+
 
 __END__
 
