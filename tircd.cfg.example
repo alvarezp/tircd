@@ -39,7 +39,7 @@ debug 0
 # See the /stats command for settings these parameters on a per-user basis
 
 # This controls how often we check with twitter for updates (in seconds)
-# Currently The twitter API enforces a limit of 100 api calls per hour
+# Currently The twitter API enforces a limit of 350 api calls per hour
 # Updating the timeline takes 2 calls, while direct messages takes 1  
 # It's a good idea to ensure your settings don't cause tircd to make more calls than that our you'll get errors
 # The default settings will cause ~ 60 calls per hour
@@ -53,7 +53,7 @@ timeline_count 20
 # ignore - This is the default behavior, tircd will not do any checking and just pass what is entered to twitter.  Twitter will automatically cut off messages longer than 140 chars.
 # warn   - tircd will warn you that the message was too long, and it will not be sent.
 # split  - tircd will split your message into multiple tweets.  The min_length setting is the minimum length a split message has to be to send.  This keeps tircd from sending a 1 character tweet if you had entered 141 characters.
-# Be careful with the split option, it can send many twitters at once if you enter a long message, and annoy your followers.
+# Be careful with the split option, it can send many tweets at once if you enter a long message, and annoy your followers.
 long_messages ignore
 min_length 20
 
@@ -62,23 +62,24 @@ min_length 20
 # 1 - tircd will be silent when joining the channel, and only show new messages / dms as they come in.
 join_silent 0
 
-#Until 0.9 tircd would filter out messages sent by you from other clients, so only traffic sent from irc would show.
-#You can now set this as an option, if you want to see your update from other clients, set this to 0.  1 is the default and previous behaivor.
-#Note: this can cause duplicate messages to show, as timeline updates can be delayed coming back from twitter.
+# Until 0.9 tircd would filter out messages sent by you from other clients, so only traffic sent from irc would show up.
+# You can now set this as an option, if you want to see your update from other clients, set this to 0.  1 is the default and previous behaivor.
+# Note: this can cause duplicate messages to show, as timeline updates can be delayed coming back from twitter.
 filter_self 1
 
-#tircd will use the tinyurl api to automatically shorten URLs in your tweets if this is set to one.
-#You must also have the URI::Find module installed so tircd can extract the URLs from your message
+# tircd will use the tinyurl api to automatically shorten URLs in your tweets if this is set to one.
+# You must also have the URI::Find module installed so tircd can extract the URLs from your message
 shorten_urls 1
 
-#tircd will expand URLs in your timeline from the default t.co-URLs
+# tircd will automtaiccally expand URLs in your timeline from the default t.co-URLs (I.E. show the original URL in your timeline
+# This does not currently work for searches
 expand_urls 1
 
-#If set tircd will concert <username>: <msg> replies into @<username> <msg> replies so you can use your irc client's tab complettion to send twitter apis
-#Currently '<username>: ' must be at the start of the message, and the user must be in #twitter for this to work.
+# If set tircd will concert <username>: <msg> replies into @<username> <msg> replies so you can use your irc client's tab complettion 
+# Currently '<username>: ' must be at the start of the message, and the user must be in #twitter for this to work.
 convert_irc_replies 0
 
-#If set, tircd will show users realname in your timeline next to the @username
+# If set, tircd will show users realname in your timeline next to the @username
 show_realname 1
 
 # If set, tircd will send anything you type in a channel to twitter as an update.  If set to "0" or not set, you will have to prepend updates with "!t" or "!tweet"

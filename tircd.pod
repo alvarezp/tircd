@@ -59,7 +59,7 @@ F<~/.tircd>
 
 F</etc/tircd.cfg>
 
-You can specify an alternate path to the configuration file on the commandline if you want to keep the configuration in another location.
+You can specify an alternate path to the configuration file on the commandline if you want to keep the configuration in another location.  There is an example config provided as part of the distribution. The easiest way to get started is to just rename that file from F<tircd.cfg.example> to F<tircd.cfg>
 
 =back
 
