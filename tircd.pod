@@ -92,17 +92,17 @@ Tircd supports password protection in the following way.
 
 * When the PIN is accepted, IF your client connected with a password set, this password is encrypted (hashed) and saved along with your twitter access-tokens.
 
-* Next time you connect, tircd will first check to see if a password is saved in your Username.config, and comapre it with the one your client sends.
+* Next time you connect, tircd will first check to see if a password is saved in your F<Username.config>, and comapre it with the one your client sends.
 
 * If they match, your connecton is allowed, and tircd continue to verify the OAuth tokens with twitter.
 
 * If they don't match, the client is disconnected with an error message.
 
-* If you want to change your password, or did not set one on your first connection, you can do so after you have connected to tircd with a simple "/stats password <password>"
+* If you want to change your password, or did not set one on your first connection, you can do so after you have connected to tircd with a simple C<< /STATS password <password> >>
 
 * Be aware that if you do this, you will also have to make sure your client uses the same password next time you connect to tircd.
 
-* If you want to remove the password, simply issue a "/stats password" without any password set.
+* If you want to remove the password, simply issue a C</STATS password> without any password set.
 
 There is currently no way of regaining access to your account if you forget it.  To reset your tircd password, you will have to remove your Username.config and authorize with twitter using OAuth and a PIN again.
 
@@ -110,11 +110,7 @@ There is currently no way of regaining access to your account if you forget it. 
 
 =head2 After connecting
 
-<<<<<<< HEAD:tircd.pod
-Once connected JOIN #twitter to get started.  The channel #twitter is where you will perform most opertions.
-=======
 Once connected C</JOIN #twitter> to get started.  The channel #twitter is where you will perform most opertions
->>>>>>> 4248d23... Small fixes in docs:tircd.pod
 
 =over
 
@@ -154,44 +150,44 @@ To send a direct message, simply send a private message to the user you want to 
 
 =item Getting additional information on users
 
-You can /who or /whois a user to view their Location / Bio / Website. Their last status update (and time sent) will also be returned.
+You can /WHO or /WHOIS a user to view their Location / Bio / Website. Their last status update (and time sent) will also be returned.
 
-Issuing a /whois on your own user name will also provide the number of API calls that have been used in the last hour.
+Issuing a /WHOIS on your own user name will also provide the number of API calls that have been used in the last hour.
 
 =item Following new users
 
-To begin following a new user, simply /invite them to #twitter.  The user will join the channel if the request to follow was successful.  If you attempt to invite a user who protects their updates, you will receive a notice that you have requested to follow them.  The user will join the channel if they accept your request and update their status.
+To begin following a new user, simply /INVITE them to #twitter.  The user will join the channel if the request to follow was successful.  If you attempt to invite a user who protects their updates, you will receive a notice that you have requested to follow them.  The user will join the channel if they accept your request and update their status.
 
 B<!invite> is the analagous offerbot command.
 
 =item Unfollowing / removing users
 
-To stop following a user, /kick them from #twitter.
+To stop following a user, /KICK them from #twitter.
 
 B<!kick> is the analagous offerbot command.
 
 =item Blocking users 
 
-To block a user /ban them.  
+To block a user /BAN them.  
 There is currently no way to get a list of users you've currently blocked via the API, so listing the bans in #twitter will only return users you've blocked in the current session.
 
 =item Unblocking users
 
-To unblock a user /unban them.
+To unblock a user /UNBAN them.
 
 =item Multiple Channels / Groups
 
-If you want to create a channel with just a subset of the people you follow, you can /join <any channel> and then /invite them to the channel.  tircd will send a user's updates to #twitter and any other channels you have invited a user to.
+If you want to create a channel with just a subset of the people you follow, you can C<< /JOIN <any channel> >> and then /INVITE them to the channel.  tircd will send a user's updates to #twitter and any other channels you have invited a user to.
 
 =item Search
 
-If you want to have updated search results for a specific term delivered, you can C<< /join <any channel> >> then set the /topic for the channnel to your search query.  Results that match that query will be sent to that channel. The /topic can be almost anything supported by the twitter search (see L<http://support.twitter.com/articles/71577-how-to-use-advanced-twitter-search> for exmaples).  Using the 'near' option is not currently supported.
+If you want to have updated search results for a specific term delivered, you can C<< /JOIN <any channel> >> then set the /topic for the channnel to your search query.  Results that match that query will be sent to that channel. The /TOPIC can be almost anything supported by the twitter search (see L<http://support.twitter.com/articles/71577-how-to-use-advanced-twitter-search> for exmaples).  Using the 'near' option is not currently supported.
 
 =item User config
 
-Certain options are changeable at runtime and set per user. To see a list of options and their current values simply send an C</stats m> command to the server.
+Certain options are changeable at runtime and set per user. To see a list of options and their current values simply send an C</STATS m> command to the server.
 
-These options are saved in a file with the name C<Username.config> (where Username is your twitter username) located in a directory set in the global config file (default: /tmp/tricd)
+These options are saved in a file with the name F<Username.config> (where Username is your twitter username) located in a directory set in the global config file (default: F</tmp/tricd>)
 
 =item Offerbot commands
 
@@ -256,7 +252,4 @@ L<List::Util>
 L<HTML::Entities>
 
 L<Digest::SHA1>
-<<<<<<< HEAD:tircd.pod
 
-=======
->>>>>>> 4248d23... Small fixes in docs:tircd.pod
