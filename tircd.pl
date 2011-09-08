@@ -1895,11 +1895,11 @@ sub twitter_conversation {
   # TODO - store the complete conversation in a temp-variable, 
   # revere it and display it in the proper order
   my($kernel, $heap, $tweet_id) = @_[KERNEL, HEAP, ARG0];
-  $kernel->post('logger','log','Getting related from status: '. $tweet_id);
+  $kernel->post('logger','log','Getting conversation from status: '. $tweet_id);
   my $status = eval { $heap->{'twitter'}->show_status($tweet_id) };
   my $error = $@;
   if ($error) {
-    $kernel->call($_[SESSION],'twitter_api_error','Unable to get related posts.',$error);   
+    $kernel->call($_[SESSION],'twitter_api_error','Unable to get post.',$error);   
     return;
   }
   my $chan = '#twitter';
@@ -1909,6 +1909,7 @@ sub twitter_conversation {
     $kernel->yield('twitter_conversation_r', $status->{'in_reply_to_status_id'});
   }
   else {
+    $kernel->post('logger','log','No in_reply_to - trying to get related posts instead');
     $kernel->yield('twitter_conversation_related', $tweet_id);
   }      
 }
@@ -1940,7 +1941,7 @@ sub twitter_conversation_r {
   my $status = eval { $heap->{'twitter'}->show_status($tweet_id) };
   my $error = $@;
   if ($error) {
-    $kernel->call($_[SESSION],'twitter_api_error','Unable to get related posts.',$error);   
+    $kernel->call($_[SESSION],'twitter_api_error','Unable to get post.',$error);   
     return;
   }
   my $chan = '#twitter';
