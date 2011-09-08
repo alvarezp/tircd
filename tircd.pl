@@ -1615,16 +1615,17 @@ sub twitter_timeline {
     # Ignore it for my own messages 
 
     if (lc($item->{'user'}->{'screen_name'}) ne lc($heap->{'username'})) {
-       if ($heap->{'config'}->{'expand_urls'}==1 && defined($item->{'entities'}->{'urls'})) {
-          foreach my $url (@{$item->{'entities'}->{'urls'}}) { 
-             $kernel->post('logger','log','Replacing URL ' . $url->{'url'} . ' with ' . $url->{'expanded_url'},$heap->{'username'}) if ($config{'debug'} >= 2);
-             my $search  = $url->{'url'};
-             my $replace = $url->{'expanded_url'};
-             $item->{'text'} =~ s/$search/$replace/g;
-              # Also replace text in retweets
-             if(defined($item->{'retweeted_status'})) {
-                $item->{'retweeted_status'}->{'text'} =~ s/$search/$replace/g;
-             }
+      if ($heap->{'config'}->{'expand_urls'}==1 && defined($item->{'entities'}->{'urls'})) {
+        foreach my $url (@{$item->{'entities'}->{'urls'}}) {
+          if (defined($url->{'expanded_url'})) {
+            $kernel->post('logger','log','Replacing URL ' . $url->{'url'} . ' with ' . $url->{'expanded_url'},$heap->{'username'}) if ($config{'debug'} >= 2);
+            my $search = $url->{'url'};
+            my $replace = $url->{'expanded_url'};
+            $item->{'text'} =~ s/$search/$replace/g;
+            # Also replace text in retweets
+            if(defined($item->{'retweeted_status'})) {
+               $item->{'retweeted_status'}->{'text'} =~ s/$search/$replace/g;
+            }
           }
        }
        
