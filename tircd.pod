@@ -110,7 +110,11 @@ There is currently no way of regaining access to your account if you forget it. 
 
 =head2 After connecting
 
+<<<<<<< HEAD:tircd.pod
 Once connected JOIN #twitter to get started.  The channel #twitter is where you will perform most opertions.
+=======
+Once connected C</JOIN #twitter> to get started.  The channel #twitter is where you will perform most opertions
+>>>>>>> 4248d23... Small fixes in docs:tircd.pod
 
 =over
 
@@ -181,11 +185,11 @@ If you want to create a channel with just a subset of the people you follow, you
 
 =item Search
 
-If you want to have updated search results for a specific term delivered, you can /join <any channel> then set the /topic for the channnel to your search query.  Results that match that query will be sent to that channel. The /topic can be almost anything supported by the twitter search (see http://search.twitter.com/operators for exmaples).  Using the 'near' option is not currently supported.
+If you want to have updated search results for a specific term delivered, you can C<< /join <any channel> >> then set the /topic for the channnel to your search query.  Results that match that query will be sent to that channel. The /topic can be almost anything supported by the twitter search (see L<http://search.twitter.com/operators> for exmaples).  Using the 'near' option is not currently supported.
 
 =item User config
 
-Certain options are changeable at runtime and set per user. To see a list of options and their current values simply send an "/stats m" command to the server.
+Certain options are changeable at runtime and set per user. To see a list of options and their current values simply send an C</stats m> command to the server.
 
 These options are saved in a file with the name C<Username.config> (where Username is your twitter username) located in a directory set in the global config file (default: /tmp/tricd)
 
@@ -252,4 +256,7 @@ L<List::Util>
 L<HTML::Entities>
 
 L<Digest::SHA1>
+<<<<<<< HEAD:tircd.pod
 
+=======
+>>>>>>> 4248d23... Small fixes in docs:tircd.pod
