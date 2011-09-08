@@ -185,7 +185,7 @@ If you want to create a channel with just a subset of the people you follow, you
 
 =item Search
 
-If you want to have updated search results for a specific term delivered, you can C<< /join <any channel> >> then set the /topic for the channnel to your search query.  Results that match that query will be sent to that channel. The /topic can be almost anything supported by the twitter search (see L<http://search.twitter.com/operators> for exmaples).  Using the 'near' option is not currently supported.
+If you want to have updated search results for a specific term delivered, you can C<< /join <any channel> >> then set the /topic for the channnel to your search query.  Results that match that query will be sent to that channel. The /topic can be almost anything supported by the twitter search (see L<http://support.twitter.com/articles/71577-how-to-use-advanced-twitter-search> for exmaples).  Using the 'near' option is not currently supported.
 
 =item User config
 
