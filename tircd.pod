@@ -75,7 +75,7 @@ With many irc clients you can do this by issuing the command /SERVER localhost 6
 
 Tircd will make an OAuth challenege to Twitter, and Twitter will return a link to a page where you can authorize the connection. This link will appear in your IRC connection status window.
 
-Make sure you are either logged into twitter as the account you plan to use, or not logged in. Click the authorize link and log-in, then click "Allow". Twitter will then present you with a PIN number. B<To complete your connection to tircd>, type: /stats pin <PIN NUMBER>. On some clients you may have to type: /quote stats pin <PIN NUMBER>. 
+Make sure you are either logged into twitter as the account you plan to use, or not logged in. Click the authorize link and log-in, then click "Allow". Twitter will then present you with a PIN number. B<To complete your connection to tircd>, type: B</stats pin <PIN NUMBER>>. On some clients you may have to type: B</quote stats pin <PIN NUMBER>>. 
 
 If the PIN is accepted by Twitter, the connection will be established. You may now join #twitter to begin. If the PIN is not accepted, another authorization link will be generated.
 
@@ -88,21 +88,25 @@ B<Your tircd-password do NOT need to be (and should not be!) the same as your tw
 
 Tircd supports password protection in the following way.
 
-* The first time you connect to tircd with a new Username, no password checking is done.  You are presented with the OAuth URL, and need to log in to twitter on the web, and enter the PIN as described above.
+=over
 
-* When the PIN is accepted, IF your client connected with a password set, this password is encrypted (hashed) and saved along with your twitter access-tokens.
+=item * The first time you connect to tircd with a new Username, no password checking is done.  You are presented with the OAuth URL, and need to log in to twitter on the web, and enter the PIN as described above.
 
-* Next time you connect, tircd will first check to see if a password is saved in your F<Username.config>, and comapre it with the one your client sends.
+=item * When the PIN is accepted, IF your client connected with a password set, this password is encrypted (hashed) and saved along with your twitter access-tokens.
 
-* If they match, your connecton is allowed, and tircd continue to verify the OAuth tokens with twitter.
+=item * Next time you connect, tircd will first check to see if a password is saved in your F<Username.config>, and comapre it with the one your client sends.
 
-* If they don't match, the client is disconnected with an error message.
+=item * If they match, your connecton is allowed, and tircd continue to verify the OAuth tokens with twitter.
 
-* If you want to change your password, or did not set one on your first connection, you can do so after you have connected to tircd with a simple C<< /STATS password <password> >>
+=item * If they don't match, the client is disconnected with an error message.
 
-* Be aware that if you do this, you will also have to make sure your client uses the same password next time you connect to tircd.
+=item * If you want to change your password, or did not set one on your first connection, you can do so after you have connected to tircd with a simple C<< /STATS password <password> >>
 
-* If you want to remove the password, simply issue a C</STATS password> without any password set.
+=item * Be aware that if you do this, you will also have to make sure your client uses the same password next time you connect to tircd.
+
+=item * If you want to remove the password, simply issue a C</STATS password> without any password set.
+
+=back
 
 There is currently no way of regaining access to your account if you forget it.  To reset your tircd password, you will have to remove your Username.config and authorize with twitter using OAuth and a PIN again.
 
