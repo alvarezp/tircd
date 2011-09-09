@@ -461,6 +461,12 @@ sub tircd_setup_authenticated_user {
 	if (!$heap->{'channels'}) {
 		$heap->{'channels'} = {};
 	}
+   if (defined($heap->{'channels'}->{'__STATE'})){
+      $heap->{'timeline_since_id'} = $heap->{'channels'}->{'__STATE'}->{'timeline_since_id'} || 0;
+      $heap->{'replies_since_id'} = $heap->{'channels'}->{'__STATE'}->{'replies_since_id'} || 0;
+      $heap->{'direct_since_id'} = $heap->{'channels'}->{'__STATE'}->{'direct_since_id'} || 0;
+   }
+
 
 	#we need this for the tinyurl support and others
 	$heap->{'ua'} = LWP::UserAgent->new;
@@ -580,6 +586,11 @@ sub tircd_save_config {
     foreach my $chan (keys %{$heap->{'channels'}}) {
         $heap->{'channels'}->{$chan}->{'joined'} = 0;
     }
+
+    # save state in special channel
+    $heap->{'channels'}->{'__STATE'}->{'timeline_since_id'} = $heap->{'timeline_since_id'};
+    $heap->{'channels'}->{'__STATE'}->{'replies_since_id'} = $heap->{'replies_since_id'};
+    $heap->{'channels'}->{'__STATE'}->{'direct_since_id'} = $heap->{'direct_since_id'};
     eval {store($heap->{'config'},$config{'storage_path'} . '/' . $heap->{'username'} . '.config');};
     eval {store($heap->{'channels'},$config{'storage_path'} . '/' . $heap->{'username'} . '.channels');};
     $kernel->post('logger','log','Saving configuration.',$heap->{'username'});  
