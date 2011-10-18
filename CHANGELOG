@@ -1,3 +1,10 @@
+=== v. 2011-10-18-01 ==
+* Add timestamps to !conversations
+* Fix a bug where non-existing slot-di would crash tircd
+
+=== v. 2011-09-12-01 ==
+* Save timeline and DM-timestamps to avoid join replay (drags commit bb49602604eb46e8f5976d6d2949924e2d4d4253)
+
 === v. 2011-09-08-01 ==
 * Fix conversation and related posts
 * Bugfixes
