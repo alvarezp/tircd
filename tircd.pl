@@ -1906,7 +1906,7 @@ sub twitter_conversation {
   my $chan = '#twitter';
   if ($status->{'in_reply_to_status_id'}) {
     $kernel->yield('server_reply',304,'Conversation for ' . $tweet_id);
-    $kernel->yield('user_msg','PRIVMSG',$status->{'user'}->{'screen_name'},$chan,$status->{'text'});
+    $kernel->yield('user_msg','PRIVMSG',$status->{'user'}->{'screen_name'},$chan, "[" . $status->{'created_at'} . "] " . $status->{'text'});
     $kernel->yield('twitter_conversation_r', $status->{'in_reply_to_status_id'});
   }
   else {
@@ -1927,7 +1927,7 @@ sub twitter_conversation_related {
   if ((@{$related}[0]) && (@{@{$related}[0]->{'results'}} > 0)) {
     $kernel->yield('server_reply',304,'Related posts for ' . $tweet_id);
     foreach my $result (@{@{$related}[0]->{'results'}}) {
-      $kernel->yield('user_msg','PRIVMSG',$result->{'value'}->{'user'}->{'screen_name'},$chan,$result->{'value'}->{'text'});
+      $kernel->yield('user_msg','PRIVMSG',$result->{'value'}->{'user'}->{'screen_name'},$chan, "[" . $result->{'value'}->{'created_at'} . "] " . $result->{'value'}->{'text'});
     }
     $kernel->yield('server_reply',304,'End of related posts');
   }
@@ -1947,7 +1947,7 @@ sub twitter_conversation_r {
   }
   my $chan = '#twitter';
   if ($status->{'text'}) {
-    $kernel->yield('user_msg','PRIVMSG',$status->{'user'}->{'screen_name'},$chan,$status->{'text'});
+    $kernel->yield('user_msg','PRIVMSG',$status->{'user'}->{'screen_name'},$chan, "[" . $status->{'created_at'} . "] " . $status->{'text'});
   }
   if ($status->{'in_reply_to_status_id'}) {
     $kernel->yield('twitter_conversation_r', $status->{'in_reply_to_status_id'});
