@@ -135,6 +135,7 @@ POE::Component::Server::TCP->new(
 
     twitter_post_tweet => \&twitter_post_tweet,
     twitter_retweet_tweet => \&twitter_retweet_tweet,
+    twitter_reply_to_tweet => \&twitter_reply_to_tweet,
     twitter_api_error => \&twitter_api_error,    
     twitter_timeline => \&twitter_timeline,
     twitter_direct_messages => \&twitter_direct_messages,
@@ -997,6 +998,7 @@ sub irc_privmsg {
     return;
   }
 
+  # Targeted to a channel, post or offerbot command
   if ($target =~ /^#/) {
     if (!exists $heap->{'channels'}->{$target}) {
       $kernel->yield('server_reply',404,$target,'Cannot send to channel');
@@ -1005,20 +1007,15 @@ sub irc_privmsg {
       $target = '#twitter'; #we want to force all topic changes and what not into twitter for now
     }
 
-    if ($heap->{'config'}->{'auto_post'} == 1) {
-      # We want to handle !-commands even if auto_post is set to true
-      # TODO : naw, want to do nothing if in offer only mode
-      if ($msg =~ /^\s*!/i) {
-        $kernel->yield('handle_command',$msg);
-      }
-      else {
-        $kernel->yield('twitter_post_tweet',$target, $msg);
-      }
-
-    } else {
+    # We want to handle !-commands even if auto_post is set to true
+    if ($msg =~ /^\s*!/i) {
+      $kernel->post('logger','log',"Saw offerbot command on $msg",$heap->{'username'});
       $kernel->yield('handle_command',$msg);
+    } elsif ($heap->{'config'}->{'auto_post'} == 1) {
+      $kernel->yield('twitter_post_tweet',$target, $msg);
     }
-  } else { 
+     
+    } else { 
     #private message, it's a dm
     my $dm = eval { $heap->{'twitter'}->new_direct_message({user => $target, text => $msg}) };
     if (!$dm) {
@@ -1097,44 +1094,85 @@ sub twitter_post_tweet {
 }
 
 sub twitter_retweet_tweet {
-   my($kernel, $heap, $tweet_id) = @_[KERNEL, HEAP, ARG0];
+    my($kernel, $heap, $tweet_id) = @_[KERNEL, HEAP, ARG0];
 
-   $kernel->post('logger','log','Retweeting status:'. $tweet_id);
-   my $rt = eval { $heap->{'twitter'}->retweet($tweet_id) };
-   my $error = $@;
-   if (!$rt && ref $error && $error->isa("Net::Twitter::Lite::Error") && $error->code() >= 400) {
-      $kernel->call($_[SESSION],'twitter_api_error','Unable to retweet status.',$error);
-      return;
-   } 
-   # TODO let user know if rt is successful
-   $kernel->yield('server_reply',212,"RT","posted");
+    $kernel->post('logger','log','Retweeting status:'. $tweet_id);
+    my $rt = eval { $heap->{'twitter'}->retweet($tweet_id) };
+    my $error = $@;
+    if (!$rt && ref $error && $error->isa("Net::Twitter::Lite::Error") && $error->code() >= 400) {
+        $kernel->yield('user_msg','PRIVMSG',$heap->{'username'},"#twitter","Retweet failed. Try again shortly.");
+        $kernel->call($_[SESSION],'twitter_api_error','Unable to retweet status.',$error);
+        return;
+    } 
 
+    $kernel->yield('user_msg','PRIVMSG',$heap->{'username'},"#twitter","Retweet Successful.");
+}
+
+sub twitter_reply_to_tweet {
+    my($kernel, $heap, $tweet_id, $msg) = @_[KERNEL, HEAP, ARG0, ARG1];
+    $kernel->post('logger','log',"Replying to ($tweet_id) with ($msg)",$heap->{'username'}) if $config{'debug'} >=2;
+
+    my $update = eval { $heap->{'twitter'}->update({ "status" => $msg, "in_reply_to_status_id" => $tweet_id}) };
+    my $error = $@;
+    if (!$update && ref $error && $error->isa("Net::Twitter::Lite::Error") && $error->code() >= 400) {
+        $kernel->yield('user_msg','PRIVMSG',$heap->{'username'},"#twitter","Reply failed.");
+        $kernel->call($_[SESSION],'twitter_api_error','Unable to update status.',$error);
+        return;
+    } 
+    $kernel->yield('user_msg','PRIVMSG',$heap->{'username'},"#twitter","Reply Successful.");
 }
 
 # allow user to control updating / message attribution / etc with offerbot type
 # commands
 sub irc_twitterbot_command {
-  my ($kernel, $heap, $data) = @_[KERNEL, HEAP, ARG0];
-  $kernel->post('logger','log','Received ' . $data . ' as command string');
-  if ($data =~ /^\s*!(up|update)/i) {
-    $kernel->yield('twitter_timeline');
-    $kernel->yield('twitter_direct_messages');
+  my ($kernel, $heap, $command) = @_[KERNEL, HEAP, ARG0];
+    $kernel->post('logger','log',"Got to offerbot area",$heap->{'username'}) if $config{'debug'} >=2;
+
+  if ($command =~ /^\s*!(up|update)/i) {
+    $kernel->yield('twitter_timeline',$heap->{'config'}->{'join_silent'});
+    $kernel->yield('twitter_direct_messages',$heap->{'config'}->{'join_silent'});
+    return;
   }
 
-  if ($data =~ /^\s*!(t|tweet)/i) {
-    (my $msg = $data) =~ s/\s*!(t|tweet)\s*//i;
+  if ($command =~ /^\s*!(t|tweet)/i) {
+    (my $msg = $command) =~ s/\s*!(t|tweet)\s*//i;
     $kernel->yield('twitter_post_tweet','#twitter',$msg);
+    return;
   }
 
-  if ($data =~ /^\s*!(rt|retweet)/i) {
-    (my $ticker_slot_selected = $data) =~ s/\s*!(rt|retweet)\s*//i;
-    my $tweet_id = $heap->{'timeline_ticker'}->{$ticker_slot_selected};
-    $kernel->post('logger','log',"Got tweet_id of $tweet_id for slot $ticker_slot_selected",$heap->{'username'});
+  if ($command =~ /^\s*!(rt|retweet)/i) {
+    my $ticker =~ s/\s*!(rt|retweet)\s+([a-z0-9]{3})\s+.*/$2/;
+    unless ($ticker) {
+      $kernel->yield('user_msg','PRIVMSG',$heap->{'username'},"#twitter","!retweet requires the 3 digit tweet id.");
+      return 1;
+    }
+    my $tweet_id = $heap->{'timeline_ticker'}->{$ticker};
+    $kernel->post('logger','log',"Got tweet_id of $tweet_id for slot $ticker",$heap->{'username'}) if $config{'debug'} >=2;
     $kernel->yield('twitter_retweet_tweet',$tweet_id);
+    return;
   }
-  if ($data =~ /^\s*!(save)/i) {
+
+  if ($command =~ /^\s*!(re|reply)/i) {
+    (my $ticker = $command) =~ s/\s*!(re|reply)\s+([a-z0-9]{3})\s+(.*)/$2/;
+    my $msg = $3;
+    unless ($ticker && $msg) {
+      $kernel->yield('user_msg','PRIVMSG',$heap->{'username'},"#twitter","!reply should be in the format \"!reply tweet-id message\"");
+      return 1;
+    }
+    my $tweet_id = $heap->{'timeline_ticker'}->{$ticker};
+    $kernel->post('logger','log',"Got tweet_id of $tweet_id for slot $ticker",$heap->{'username'}) if $config{'debug'} >=2;
+    $kernel->yield('twitter_reply_to_tweet',$tweet_id,$msg);
+    return;
+  }
+
+
+
+  if ($command =~ /^\s*!(h|help)/i) {
+    }
+  if ($command =~ /^\s*!(save)/i) {
     $kernel->yield('save_config');
   }
+
 }
 
 #allow the user to follow new users by adding them to the channel
@@ -1380,8 +1418,8 @@ sub channel_twitter {
   $kernel->yield('user_msg','TOPIC',$heap->{'username'},$chan,"$heap->{'username'}'s last update: $lastmsg");
 
   #start our twitter even loop, grab the timeline, replies and direct messages
-  $kernel->yield('twitter_timeline',$heap->{'config'}->{'join_silent'}); 
-  $kernel->yield('twitter_direct_messages',$heap->{'config'}->{'join_silent'}); 
+  $kernel->yield('twitter_timeline'); 
+  $kernel->yield('twitter_direct_messages'); 
   
   return 1;
 }
