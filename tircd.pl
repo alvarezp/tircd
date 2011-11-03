@@ -136,6 +136,7 @@ POE::Component::Server::TCP->new(
     twitter_post_tweet => \&twitter_post_tweet,
     twitter_retweet_tweet => \&twitter_retweet_tweet,
     twitter_reply_to_tweet => \&twitter_reply_to_tweet,
+    twitter_send_dm => \&twitter_send_dm,
     twitter_api_error => \&twitter_api_error,    
     twitter_timeline => \&twitter_timeline,
     twitter_direct_messages => \&twitter_direct_messages,
@@ -157,6 +158,8 @@ POE::Component::Server::TCP->new(
     no_pin_received => \&tircd_oauth_no_pin_received,
 
     save_config => \&tircd_save_config,
+
+    get_message_parts => \&tircd_get_message_parts,
 
     
   },
@@ -976,56 +979,34 @@ sub irc_privmsg {
   
   my $target = $data->{'params'}[0];
   my $msg  = $data->{'params'}[1];
-  
+
   #handle /me or ACTION requests properly
   #this begins the slipperly slope of manipulating user input
   $msg =~ s/\001ACTION (.*)\001/\*$1\*/;
   
-
-  if ($heap->{'config'}->{'long_messages'} eq 'split' && length($msg) > 140) {
-    my @parts = $msg =~ /(.{1,140})/g;
-    if (length($parts[$#parts]) < $heap->{'config'}->{'min_length'}) {
-      $kernel->yield('server_reply',404,$target,"The last message would only be ".length($parts[$#parts]).' characters long.  Your message was not sent.');
-      return;
-    }
-    
-    #if we got this far, recue the split messages
-    foreach my $part (@parts) {
-      $data->{'params'}[1] = $part;
-      $kernel->call($_[SESSION],'PRIVMSG',$data);
-    }
-
-    return;
-  }
-
   # Targeted to a channel, post or offerbot command
   if ($target =~ /^#/) {
     if (!exists $heap->{'channels'}->{$target}) {
       $kernel->yield('server_reply',404,$target,'Cannot send to channel');
       return;
-    } else {
-      $target = '#twitter'; #we want to force all topic changes and what not into twitter for now
     }
+  
+    $target = '#twitter'; #we want to force all topic changes and what not into twitter for now
 
     # We want to handle !-commands even if auto_post is set to true
     if ($msg =~ /^\s*!/i) {
-      $kernel->post('logger','log',"Saw offerbot command on $msg",$heap->{'username'});
+      $kernel->post('logger','log',"Saw offerbot command of $msg",$heap->{'username'}) if $config{'debug'} >= 1;
       $kernel->yield('handle_command',$msg);
     } elsif ($heap->{'config'}->{'auto_post'} == 1) {
       $kernel->yield('twitter_post_tweet',$target, $msg);
     }
      
-    } else { 
-    #private message, it's a dm
-    my $dm = eval { $heap->{'twitter'}->new_direct_message({user => $target, text => $msg}) };
-    if (!$dm) {
-      $kernel->yield('server_reply',401,$target,"Unable to send direct message.  Perhaps $target isn't following you?");
-      $kernel->post('logger','log',"Unable to send direct message to $target",$heap->{'username'});
-    } else {
-      $kernel->post('logger','log',"Sent direct message to $target",$heap->{'username'});
-    }
-  }    
-}
+  } else { 
+    # PMs are DMs
+    $kernel->yield('twitter_send_dm',$target, $msg);
+  }
+}    
+
 
 sub twitter_post_tweet {
    # throwaway target for now
@@ -1063,23 +1044,22 @@ sub twitter_post_tweet {
       $msg =~ s/^(\w+)\: /\@$1 /;
    }
 
-	#warn if asked and the message is too long after fucking with it
-   if ($heap->{'config'}->{'long_messages'} eq 'warn' && length($msg) > 140) {
-      $kernel->yield('server_reply',404,$target,'Your message is '.length($msg).' characters long.  Your message was not sent.');
-      return;
-   }  
+   my @msg_parts = $kernel->call($_[SESSION],'get_message_parts',$target, $msg);
+   unless (@msg_parts) {
+      return 0;
+   }
+   
+   my $update;
+   for my $part (@msg_parts) {
+      $update = eval { $heap->{'twitter'}->update($part) };
+      my $error = $@;
+      if (!$update && ref $error && $error->isa("Net::Twitter::Lite::Error") && $error->code() >= 400) {
+         $kernel->call($_[SESSION],'twitter_api_error','Unable to update status.',$error);
+         return;
+      } 
+   }
 
-	#in a channel, this an update
-   my $update = eval { $heap->{'twitter'}->update($msg) };
-   my $error = $@;
-   if (!$update && ref $error && $error->isa("Net::Twitter::Lite::Error") && $error->code() >= 400) {
-      $kernel->call($_[SESSION],'twitter_api_error','Unable to update status.',$error);
-      return;
-   } 
-
-   $msg = $update->{'text'};
-
-	#update our own friend record
+   #update our own friend record
    my $me = $kernel->call($_[SESSION],'getfriend',$heap->{'username'});
    $me = $update->{'user'};
    $me->{'status'} = $update;
@@ -1091,6 +1071,28 @@ sub twitter_post_tweet {
    $heap->{'channels'}->{$target}->{'topic'} = $msg;
 
    $kernel->post('logger','log','Updated status.',$heap->{'username'});
+}
+
+sub twitter_send_dm {
+    my($kernel, $heap, $target, $msg) = @_[KERNEL, HEAP, ARG0, ARG1];
+
+    my @msg_parts = $kernel->call($_[SESSION],'get_message_parts',$target, $msg);
+
+    # if parts undefined, message too long and not split
+    unless(@msg_parts) {
+        return 0;
+    }
+    
+    $kernel->post('logger','log',"Sending DM with " . scalar(@msg_parts) . " pieces.", $heap->{'username'});
+    for my $part (@msg_parts) {
+        my $dm = eval { $heap->{'twitter'}->new_direct_message({user => $target, text => $part}) };
+        if (!$dm) {
+            $kernel->yield('server_reply',401,$target,"Unable to send part or all of last direct message.  Perhaps $target isn't following you?");
+            $kernel->post('logger','log',"Unable to send direct message to $target",$heap->{'username'});
+        } else {
+            $kernel->post('logger','log',"Sent direct message to $target",$heap->{'username'});
+        }
+    }
 }
 
 sub twitter_retweet_tweet {
@@ -1111,15 +1113,24 @@ sub twitter_retweet_tweet {
 sub twitter_reply_to_tweet {
     my($kernel, $heap, $tweet_id, $msg) = @_[KERNEL, HEAP, ARG0, ARG1];
     $kernel->post('logger','log',"Replying to ($tweet_id) with ($msg)",$heap->{'username'}) if $config{'debug'} >=2;
+    my $errd;
+    my $target = "#twitter";
 
-    my $update = eval { $heap->{'twitter'}->update({ "status" => $msg, "in_reply_to_status_id" => $tweet_id}) };
-    my $error = $@;
-    if (!$update && ref $error && $error->isa("Net::Twitter::Lite::Error") && $error->code() >= 400) {
-        $kernel->yield('user_msg','PRIVMSG',$heap->{'username'},"#twitter","Reply failed.");
-        $kernel->call($_[SESSION],'twitter_api_error','Unable to update status.',$error);
-        return;
-    } 
-    $kernel->yield('user_msg','PRIVMSG',$heap->{'username'},"#twitter","Reply Successful.");
+    my @msg_parts = $kernel->call($_[SESSION],'get_message_parts',$target, $msg);
+
+    for my $part (@msg_parts) {
+        my $update = eval { $heap->{'twitter'}->update({ "status" => $msg, "in_reply_to_status_id" => $tweet_id}) };
+        my $error = $@;
+        if (!$update && ref $error && $error->isa("Net::Twitter::Lite::Error") && $error->code() >= 400) {
+            $errd = 1;
+            $kernel->yield('user_msg','PRIVMSG',$heap->{'username'},"#twitter","Reply failed.");
+            $kernel->call($_[SESSION],'twitter_api_error','Unable to update status.',$error);
+            return;
+        } 
+    }
+    unless ($errd) {
+        $kernel->yield('user_msg','PRIVMSG',$heap->{'username'},"#twitter","Reply Successful.");
+    }
 }
 
 # allow user to control updating / message attribution / etc with offerbot type
@@ -1165,10 +1176,9 @@ sub irc_twitterbot_command {
     return;
   }
 
-
-
   if ($command =~ /^\s*!(h|help)/i) {
     }
+
   if ($command =~ /^\s*!(save)/i) {
     $kernel->yield('save_config');
   }
@@ -1732,6 +1742,36 @@ sub twitter_search {
 
   $kernel->delay_add('twitter_search',$delay,$chan);    
 }
+
+sub tircd_get_message_parts {
+    # only take target to direct error strings
+    my ($kernel, $heap, $target, $msg) = @_[KERNEL, HEAP, ARG0, ARG1];
+
+    my @parts = undef;
+
+    if (length($msg) <= 140) {
+        @parts = ($msg);
+    }    
+
+    if (length($msg) > 140) {
+        if ($heap->{'config'}->{'long_messages'} eq 'warn') {
+            $kernel->yield('server_reply',404,$target,'Your message is '.length($msg).' characters long.  Your message was not sent.');
+            return;
+        }  
+
+        if ($heap->{'config'}->{'long_messages'} eq 'split') {
+            @parts = $msg =~ /(.{1,140}\b)/g;
+            if (length($parts[$#parts]) < $heap->{'config'}->{'min_length'}) {
+                $kernel->yield('server_reply',404,$target,"The last message would only be ".length($parts[$#parts]).' characters long.  Your message was not sent.');
+                return;
+            }
+        }
+    }
+
+    $kernel->post('logger','log','Got '.length($msg).' char message of: '.$msg.' ### turned it in to '.scalar(@parts).' chunks',$heap->{'username'});
+    return @parts;
+}
+    
 
 __END__
 
