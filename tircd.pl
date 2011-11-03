@@ -569,6 +569,11 @@ sub tircd_cleanup {
   $kernel->delay('twitter_timeline');  
   $kernel->delay('twitter_direct_messages');
 
+  #mark all channels as not joined for the next reload
+  foreach my $chan (keys %{$heap->{'channels'}}) {
+      $heap->{'channels'}->{$chan}->{'joined'} = 0;
+  }
+
   $kernel->yield('save_config');
 
   $kernel->yield('shutdown');
@@ -581,25 +586,25 @@ sub tircd_save_config {
   unless ( -e $config{'storage_path'} && -d $config{'storage_path'} ) {
     unless (mkdir ($config{'storage_path'})) {
       $kernel->post('logger','log','Was unable to create storage_path at ' . $config{'storage_path'} . ' .' . $!);  
+      return 0;
     }
   }
   
   #if defined, save our data for next time
   if ($config{'storage_path'} && -d $config{'storage_path'} && -w $config{'storage_path'}) {
-    #mark all channels as not joined for the next reload
-    foreach my $chan (keys %{$heap->{'channels'}}) {
-        $heap->{'channels'}->{$chan}->{'joined'} = 0;
-    }
 
     # save state in special channel
     $heap->{'channels'}->{'__STATE'}->{'timeline_since_id'} = $heap->{'timeline_since_id'};
     $heap->{'channels'}->{'__STATE'}->{'replies_since_id'} = $heap->{'replies_since_id'};
     $heap->{'channels'}->{'__STATE'}->{'direct_since_id'} = $heap->{'direct_since_id'};
+    
     eval {store($heap->{'config'},$config{'storage_path'} . '/' . $heap->{'username'} . '.config');};
     eval {store($heap->{'channels'},$config{'storage_path'} . '/' . $heap->{'username'} . '.channels');};
     $kernel->post('logger','log','Saving configuration.',$heap->{'username'});  
+    return 1;
   } else {
     $kernel->post('logger','log','storage_path is not set or is not writable, not saving configuration.',$heap->{'username'});  
+    return 0;
   }
 }
 
@@ -1139,9 +1144,9 @@ sub irc_twitterbot_command {
   my ($kernel, $heap, $command) = @_[KERNEL, HEAP, ARG0];
     $kernel->post('logger','log',"Got to offerbot area",$heap->{'username'}) if $config{'debug'} >=2;
 
-  if ($command =~ /^\s*!(up|update)/i) {
-    $kernel->yield('twitter_timeline',$heap->{'config'}->{'join_silent'});
-    $kernel->yield('twitter_direct_messages',$heap->{'config'}->{'join_silent'});
+  if ($command =~ /^\s*!(refresh|up|update)/i) {
+    $kernel->yield('twitter_timeline');
+    $kernel->yield('twitter_direct_messages');
     return;
   }
 
@@ -1177,10 +1182,16 @@ sub irc_twitterbot_command {
   }
 
   if ($command =~ /^\s*!(h|help)/i) {
+    
     }
 
   if ($command =~ /^\s*!(save)/i) {
-    $kernel->yield('save_config');
+    my $st = $kernel->call('save_config');
+    if ($st) {
+      $kernel->yield('user_msg','PRIVMSG',$heap->{'username'},$target,"User configuration stored successfully");
+    } else{
+      $kernel->yield('user_msg','PRIVMSG',$heap->{'username'},"#twitter","ERROR - User configuration failed.");
+    }
   }
 
 }
