@@ -1488,47 +1488,47 @@ sub twitter_timeline {
     # Replace URLS and expand Real Names 
     # This is quite ugly, but it's the best I could do...
     # Ignore it for my own messages 
+
     if (lc($item->{'user'}->{'screen_name'}) ne lc($heap->{'username'})) {
-      if (keys(%{$item->{'entities'}})) {
-        for my $t_key ( keys %{$item->{'entities'}} ) {
-          foreach my $t_value (values @{$item->{'entities'}->{$t_key}}) {
-            if ($heap->{'config'}->{'expand_urls'} == 1) {
-              if ($t_value->{'url'} and $t_value->{'expanded_url'}) {
-                $kernel->post('logger','log','Replacing URL ' . $t_value->{'url'} . ' with ' . $t_value->{'expanded_url'},$heap->{'username'}) if ($config{'debug'} >= 2);
-                my $search  = $t_value->{'url'};
-                my $replace = $t_value->{'expanded_url'};
-                $item->{'text'} =~ s/$search/$replace/g;
-                # Also replace text in retweets
-                if(defined($item->{'retweeted_status'})) {
-                  $item->{'retweeted_status'}->{'text'} =~ s/$search/$replace/g;
-                }
-              }
-            }
-            if ($heap->{'config'}->{'show_realname'} == 1) {
-              if ($t_value->{'screen_name'} and $t_value->{'name'}) {
-                $kernel->post('logger','log','Showing realname ' . $t_value->{'name'} . ' for ' . $t_value->{'screen_name'},$heap->{'username'}) if ($config{'debug'} >= 2);
-                my $search  = "@" . $t_value->{'screen_name'};
-                my $replace = "@" . $t_value->{'screen_name'} . " (" . $t_value->{'name'} . ")";
-                $item->{'text'} =~ s/$search/$replace/g;
-                # Also replace text in retweets
-                if(defined($item->{'retweeted_status'})) {
-                  $item->{'retweeted_status'}->{'text'} =~ s/$search/$replace/g;
-                  if ($t_value->{'screen_name'} eq $item->{'retweeted_status'}->{'user'}->{'screen_name'}) {
-                  # If the text does not contain the username of the person being retweeted
-                  # also add realname first in text
-                    if ($item->{'retweeted_status'}->{'text'} !~ /$item->{'retweeted_status'}->{'user'}->{'screen_name'}/) {
-                      my $search  = "^";
-                      my $replace = "(" . $t_value->{'name'} . ") ";
-                      $item->{'retweeted_status'}->{'text'} =~ s/$search/$replace/g;
-                    }
-                  }
-                }
-              }
-            }
+       if ($heap->{'config'}->{'expand_urls'}==1 && defined($item->{'entities'}->{'urls'})) {
+          foreach my $url (@{$item->{'entities'}->{'urls'}}) { 
+             $kernel->post('logger','log','Replacing URL ' . $url->{'url'} . ' with ' . $url->{'expanded_url'},$heap->{'username'}) if ($config{'debug'} >= 2);
+             my $search  = $url->{'url'};
+             my $replace = $url->{'expanded_url'};
+             $item->{'text'} =~ s/$search/$replace/g;
+              # Also replace text in retweets
+             if(defined($item->{'retweeted_status'})) {
+                $item->{'retweeted_status'}->{'text'} =~ s/$search/$replace/g;
+             }
           }
-        }
-      }
+       }
+       
+       if ($heap->{'config'}->{'show_realname'} == 1 && defined($item->{'entities'}->{'user_mentions'})) {
+          foreach my $user (@{$item->{'entities'}->{'user_mentions'}}) {
+             $kernel->post('logger','log','Showing realname ' . $user->{'name'} . ' for ' . $user->{'screen_name'},$heap->{'username'}) if ($config{'debug'} >= 2);
+             my $search  = "@" . $user->{'screen_name'};
+             my $replace = "@" . $user->{'screen_name'} . " (" . $user->{'name'} . ")";
+
+             $item->{'text'} =~ s/$search/$replace/g;
+
+             # Also replace text in retweets
+             if(defined($item->{'retweeted_status'})) {
+                $item->{'retweeted_status'}->{'text'} =~ s/$search/$replace/g;
+
+                if ($user->{'screen_name'} eq $item->{'retweeted_status'}->{'user'}->{'screen_name'}) {
+                     # If the text does not contain the username of the person being retweeted
+                     # also add realname first in text
+                   if ($item->{'retweeted_status'}->{'text'} !~ /$item->{'retweeted_status'}->{'user'}->{'screen_name'}/) {
+                      my $search  = "^";
+                      my $replace = "(" . $user->{'name'} . ") ";
+                      $item->{'retweeted_status'}->{'text'} =~ s/$search/$replace/g;
+                   }
+                }
+             }
+          }
+       }
     }
+
     # assign a ticker slot for later referencing with !reply or !retweet
     my $ticker_slot = get_timeline_ticker_slot();
     $heap->{'timeline_ticker'}->{$ticker_slot} = $item->{'id'};
