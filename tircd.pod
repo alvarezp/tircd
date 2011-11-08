@@ -116,6 +116,18 @@ When users you follow update their status, it will be sent to the channel as a m
 
 @replies are also sent to the channel as messages.
 
+=item Retweeting a status
+
+To retweet a status, use the offerbot command !retweet followed by the 3 letter tweet identifier.
+
+B<!retweet a7f>
+
+=item Replying to a status
+
+To reply to a status update, use the offerbot command !retweet followed by the 3 letter tweet identifier.
+
+B<!retweet a7f>
+
 =item Listing the users you follow
 
 Each user you follow will be in the #twitter channel.  If you follow a new user outside of tircd, that user will join the channel the first time they update their status.  People who follow you back are given voice (+v) to indicate that fact.
@@ -136,9 +148,13 @@ Issuing a /whois on your own user name will also provide the number of API calls
 
 To begin following a new user, simply /invite them to #twitter.  The user will join the channel if the request to follow was successful.  If you attempt to invite a user who protects their updates, you will receive a notice that you have requested to follow them.  The user will join the channel if they accept your request and update their status.
 
+B<!invite> is the analagous offerbot command.
+
 =item Unfollowing / removing users
 
 To stop following a user, /kick them from #twitter.
+
+B<!kick> is the analagous offerbot command.
 
 =item Blocking users 
 
@@ -163,17 +179,27 @@ Certain options are changeable at runtime and set per user. To see a list of opt
 
 These options are saved in a file with the name C<Username.config> (where Username is your twitter username) located in a directory set in the global config file (default: /tmp/tricd)
 
-=item Other commands
+=item Offerbot commands
 
-tircd supports a few additional "bot-like" commands:
+Tircd supports offerbot style control. All functions available through the offerbot are available as they're metaphorically appropriate IRC functions. Therefore, retweeting, replying to a specific tweet, and saving the user configuration are B<only> available through the offerbot.
 
-C<!t[weet]> - Post a tweet
+B<![update|up|refresh]> - Updates the #twitter stream immediately.
 
-C<< ![rt|retweet] <id> >> - Retweet the post with ID <id> (displayed first in your timeline)
+B<![tweet|t] <text of tweet>> - Posts the given text as an update to your feed.
 
-C<!u[pdate]> - Fetch new messages from twitter (do not wait for next auto update)
+B<![retweet|rt] <tweed-id>> - Posts a retweet. tweet-id is the 3 digit code preceding the tweet.
 
-C<!save> - Save User.config  
+B<![reply|re] <tweet-id> <message text>> - Replies to a tweet. tweet-id is a the 3 digit code preceding the tweet.
+
+B<![conversation|conv] <tweet-id>> - Replay a conversation from begining. If tweet is not a reply, shows related tweets.
+
+B<![add|invite|follow] <username>> - Begin following the specified twitter username.
+
+B<![remove|kick|unfollow] <username>> - Remove the username from the list of people your account follows.
+
+B<!save> - Saves twitter-username specific configuration immediately.
+
+B<!help> - Shows this help message.
 
 =back
 

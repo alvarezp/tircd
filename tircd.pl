@@ -1001,7 +1001,7 @@ sub irc_privmsg {
     # We want to handle !-commands even if auto_post is set to true
     if ($msg =~ /^\s*!/i) {
       $kernel->post('logger','log',"Saw offerbot command of $msg",$heap->{'username'}) if $config{'debug'} >= 1;
-      $kernel->yield('handle_command',$msg);
+      $kernel->yield('handle_command', $msg, $target);
     } elsif ($heap->{'config'}->{'auto_post'} == 1) {
       $kernel->yield('twitter_post_tweet',$target, $msg);
     }
@@ -1141,59 +1141,129 @@ sub twitter_reply_to_tweet {
 # allow user to control updating / message attribution / etc with offerbot type
 # commands
 sub irc_twitterbot_command {
-  my ($kernel, $heap, $command) = @_[KERNEL, HEAP, ARG0];
-    $kernel->post('logger','log',"Got to offerbot area",$heap->{'username'}) if $config{'debug'} >=2;
+  my ($kernel, $heap, $command, $target) = @_[KERNEL, HEAP, ARG0, ARG1];
+    $kernel->post('logger','log',"Got to tircdbot area",$heap->{'username'}) if $config{'debug'} >=2;
 
-  if ($command =~ /^\s*!(refresh|up|update)/i) {
-    $kernel->yield('twitter_timeline');
-    $kernel->yield('twitter_direct_messages');
-    return;
-  }
+    my (@arg) = split / /, $command;
 
-  if ($command =~ /^\s*!(t|tweet)/i) {
-    (my $msg = $command) =~ s/\s*!(t|tweet)\s*//i;
-    $kernel->yield('twitter_post_tweet','#twitter',$msg);
-    return;
-  }
+    # some processes require tweet-id, if twid is true, tweet-id is looked-up
+    # and replaces short hash before method is called
+    my @proc;
+    @proc = (
+        { 'cmdmatch' => 'refresh|up|update',
+            'help' => "![update|up|refresh] - Updates the #twitter stream immediately.",
+            'exec' => sub {
+                    $kernel->yield('twitter_timeline');
+                    $kernel->yield('twitter_direct_messages');
+                },
+        },
 
-  if ($command =~ /^\s*!(rt|retweet)/i) {
-    my $ticker =~ s/\s*!(rt|retweet)\s+([a-z0-9]{3})\s+.*/$2/;
-    unless ($ticker) {
-      $kernel->yield('user_msg','PRIVMSG',$heap->{'username'},"#twitter","!retweet requires the 3 digit tweet id.");
-      return 1;
+        { 'cmdmatch' => 'tweet|t',
+            'argmatch' => '\S+.',
+            'help' => "![tweet|t] <text of tweet> - Posts the given text as an update to your feed.",
+            'exec' => sub {
+                    my ($cmd, @msg) = @_;
+                    $kernel->yield('twitter_post_tweet', '#twitter', join(" ",@msg));
+            },
+        },
+
+        { 'cmdmatch' => 'retweet|rt',
+            'argmatch' => '[0-9a-f]{3}\b',
+            'twid' => 1,
+            'help' => "![retweet|rt] <tweed-id> - Posts a retweet. tweet-id is the 3 digit code preceding the tweet.",
+            'exec' => sub {
+                    my ($cmd, $rt_id) = @_;
+                    $kernel->yield('twitter_retweet_tweet',$rt_id);
+            },
+        },
+
+        { 'cmdmatch' => 'reply|re',
+            'argmatch' => '[0-9a-f]{3}\b',
+            'twid' => 1,
+            'help' => "![reply|re] <tweet-id> <message text> - Replies to a tweet. tweet-id is a the 3 digit code preceding the tweet.",
+            'exec' => sub {
+                    my ($cmd, $rt_id, @msg) = @_;
+                    $kernel->yield('twitter_reply_to_tweet',$rt_id,join(" ",@msg));
+            },
+        },
+
+        { 'cmdmatch' => 'conv|conversation',
+            'argmatch' => '[0-9a-f]{3}\b',
+            'twid' => 1,
+            'help' => "![conversation|conv] <tweet-id> - Replay a conversation from begining. If tweet is not a reply, shows related tweets.",
+            'exec' => sub {
+                    my ($cmd, $tw_id) = @_;
+                    $kernel->yield('twitter_conversation', $tw_id);
+            },
+        },
+
+        # arg should be limited to 15char, but some UNs are grandfathered to be longer.
+        { 'cmdmatch' => 'add|invite|follow',
+            'argmatch' => '\w',
+            'help' => '![add|invite|follow] <username> - Begin following the specified twitter username.',
+            'exec' => sub {
+                    my ($cmd, $add_user) = @_;
+                    my $data = { 'params' => [$add_user, '#twitter'] };
+                    $kernel->yield('INVITE', $data);
+            },
+        },
+
+        { 'cmdmatch' => 'remove|kick|unfollow',
+            'argmatch' => '\w',
+            'help' => '![remove|kick|unfollow] <username> - Remove the username from the list of people your account follows.',
+            'exec' => sub {
+                    my ($cmd, $del_user) = @_;
+                    my $data = { 'params' => [ '#twitter', $del_user ] };
+                    $kernel->yield('KICK', $data);
+            },
+        },
+
+        # best effort, no error checking
+        { 'cmdmatch' => 'save',
+            'help' => '!save - Saves twitter-username specific configuration immediately.',
+            'exec' => sub {
+                    $kernel->yield('save_config');
+            },
+        },
+
+        { 'cmdmatch' => 'h|help',
+            'help' => "!help - Shows this help message.",
+            'exec' => sub {
+                    $kernel->yield('user_msg','PRIVMSG',"tircdbot","#twitter","Tircd Command List");
+                    $kernel->yield('user_msg','PRIVMSG',"tircdbot","#twitter","Commands listed in [abc|a] form mean that 'a' is an alias for 'abc'");
+                    for (@proc) {
+                        $kernel->yield('user_msg','PRIVMSG',"tircdbot","#twitter",$_->{'help'});
+                    }
+            },
+        },
+    );
+
+    # compare command to cmdmatch, verify args against argmatch (or error), convert short tweet-ids into real tweeit-ids, do something
+    for my $p (@proc) {
+        # scan proc table to find matching command
+        my ($cmdmatch, $argmatch) = ($p->{'cmdmatch'},$p->{'argmatch'});
+        if ($arg[0] =~ m/^\s*!($cmdmatch)\b/i) {
+            my $cmdargs = join(" ",@arg);
+            # check argument formatting 
+            if ($cmdargs =~ /^\s*!($cmdmatch)\s*($argmatch)/i) {
+                # convert short tweet-id to real id
+                if ($p->{'twid'}) {
+                    my $tw_id = $heap->{'timeline_ticker'}->{$arg[1]};
+                    unless ($tw_id) {
+                        $kernel->yield('user_msg','PRIVMSG',"tircdbot","#twitter","Tweet id of: " . $arg[1] . " was not found.");
+                        return;
+                    }
+                    $arg[1] = $tw_id;
+                }
+                # run the coderef with the updated @arg
+                &{$p->{'exec'}}(@arg);
+                return 1;
+            } else {
+                $kernel->yield('user_msg','PRIVMSG',"tircdbot","#twitter",$p->{'help'});
+                return;
+            }
+        }
     }
-    my $tweet_id = $heap->{'timeline_ticker'}->{$ticker};
-    $kernel->post('logger','log',"Got tweet_id of $tweet_id for slot $ticker",$heap->{'username'}) if $config{'debug'} >=2;
-    $kernel->yield('twitter_retweet_tweet',$tweet_id);
-    return;
-  }
-
-  if ($command =~ /^\s*!(re|reply)/i) {
-    (my $ticker = $command) =~ s/\s*!(re|reply)\s+([a-z0-9]{3})\s+(.*)/$2/;
-    my $msg = $3;
-    unless ($ticker && $msg) {
-      $kernel->yield('user_msg','PRIVMSG',$heap->{'username'},"#twitter","!reply should be in the format \"!reply tweet-id message\"");
-      return 1;
-    }
-    my $tweet_id = $heap->{'timeline_ticker'}->{$ticker};
-    $kernel->post('logger','log',"Got tweet_id of $tweet_id for slot $ticker",$heap->{'username'}) if $config{'debug'} >=2;
-    $kernel->yield('twitter_reply_to_tweet',$tweet_id,$msg);
-    return;
-  }
-
-  if ($command =~ /^\s*!(h|help)/i) {
-    
-    }
-
-  if ($command =~ /^\s*!(save)/i) {
-    my $st = $kernel->call('save_config');
-    if ($st) {
-      $kernel->yield('user_msg','PRIVMSG',$heap->{'username'},$target,"User configuration stored successfully");
-    } else{
-      $kernel->yield('user_msg','PRIVMSG',$heap->{'username'},"#twitter","ERROR - User configuration failed.");
-    }
-  }
-
 }
 
 #allow the user to follow new users by adding them to the channel
@@ -1415,6 +1485,9 @@ sub channel_twitter {
     #keep a copy of who is in this channel
     $heap->{'channels'}->{$chan}->{'names'}->{$user->{'screen_name'}} = $ov;
   }
+
+  # Add the tircdbot
+  $heap->{'channels'}->{$chan}->{'names'}->{'tircdbot'} = '%';
   
   if (!$lastmsg) { #if we aren't already in the list, add us to the list for NAMES - AND go grab one tweet to put us in the array
     $heap->{'channels'}->{$chan}->{'names'}->{$heap->{'username'}} = '@';
