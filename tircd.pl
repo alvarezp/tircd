@@ -1138,6 +1138,10 @@ sub twitter_reply_to_tweet {
 
     my @msg_parts = $kernel->call($_[SESSION],'get_message_parts',$target, $msg);
 
+    unless(@msg_parts) {
+        return 0;
+    }
+
     for my $part (@msg_parts) {
         my $update = eval { $heap->{'twitter'}->update({ "status" => $msg, "in_reply_to_status_id" => $tweet_id}) };
         my $error = $@;
