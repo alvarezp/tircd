@@ -1522,8 +1522,8 @@ sub channel_twitter {
   $kernel->yield('user_msg','TOPIC',$heap->{'username'},$chan,"$heap->{'username'}'s last update: $lastmsg");
 
   #start our twitter even loop, grab the timeline, replies and direct messages
-  $kernel->yield('twitter_timeline'); 
-  $kernel->yield('twitter_direct_messages'); 
+  $kernel->yield('twitter_timeline', $heap->{'config'}->{'join_silent'});
+  $kernel->yield('twitter_direct_messages', $heap->{'config'}->{'join_silent'});
   
   return 1;
 }
