@@ -1158,6 +1158,15 @@ sub irc_twitterbot_command {
                 },
         },
 
+        { 'cmdmatch' => 'l|length',
+            'argmatch' => '.',
+            'help' => '![length|l] <text> - Returns the length in characters of a message.',
+            'exec' => sub {
+                    my ($cmd, @msg) = @_;
+                    $kernel->yield('user_msg','PRIVMSG',"tircdbot","#twitter","Number of characters: " . length(join(" ",@msg)));
+            },
+        },
+
         { 'cmdmatch' => 'tweet|t',
             'argmatch' => '\S+.',
             'help' => "![tweet|t] <text of tweet> - Posts the given text as an update to your feed.",
