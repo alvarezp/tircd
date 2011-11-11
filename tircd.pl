@@ -434,7 +434,7 @@ sub tircd_setup_authenticated_user {
 		$heap->{'channels'} = eval {retrieve($config{'storage_path'} . '/' . $heap->{'username'} . '.channels');};
 	} 
 
-	my @user_settings = qw(update_timeline update_directs timeline_count long_messages min_length join_silent filter_self shorten_urls convert_irc_replies access_token access_token_secret auto_post show_realname expand_urls password);
+	my @user_settings = qw(update_timeline update_directs timeline_count long_messages min_length max_splits join_silent filter_self shorten_urls convert_irc_replies access_token access_token_secret auto_post show_realname expand_urls password);
 
 	# copy base config for user if prior config failed to exist/retrieve
    # TODO: where does original heap config come from
@@ -1855,8 +1855,12 @@ sub tircd_get_message_parts {
 
         if ($heap->{'config'}->{'long_messages'} eq 'split') {
             @parts = $msg =~ /(.{1,140}\b)/g;
+            if (scalar(@parts) > $heap->{'config'}->{'max_splits'}) {
+                $kernel->yield('server_reply',404,$target,"The last message would split into " . scalar(@parts) . " tweets. This is greater than the number allowe by your max_splits setting.");
+                return;
+            }
             if (length($parts[$#parts]) < $heap->{'config'}->{'min_length'}) {
-                $kernel->yield('server_reply',404,$target,"The last message would only be ".length($parts[$#parts]).' characters long.  Your message was not sent.');
+                $kernel->yield('server_reply',404,$target,"The last of the split messages would only be ".length($parts[$#parts]).' characters long.  Your message was not sent.');
                 return;
             }
         }
