@@ -63,6 +63,7 @@ close(C);
 
 #config file backwards compatibility
 $config{'timeline_count'} = 20 if !exists $config{'timeline_count'};
+$config{'storage_path'} =~ s/~/$ENV{'HOME'}/ if ($config{'storage_path'} =~ /~/);
 
 #storage for connected users
 my %users;
