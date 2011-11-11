@@ -950,7 +950,7 @@ sub irc_whois {
 
 sub irc_stats {
   my ($kernel, $heap, $data) = @_[KERNEL, HEAP, ARG0];
-  my $key = $data->{'params'}[0];
+  my $key = lc($data->{'params'}[0]);
   my $val = $data->{'params'}[1];  
   
   $key = '--' if (!$key || $key eq 'm');
@@ -973,6 +973,15 @@ sub irc_stats {
       }
       $heap->{'config'}->{$key} = $val;
       $kernel->yield('server_reply',212,$key,"set to $val");
+      # if val is 0, $delay becomes undef, which kills twitter_timeline alarms in place
+      if ($key =~ m/update_timeline/i) {
+        my $delay = ($val) ? $val:undef;
+        $kernel->delay('twitter_timeline',$delay);
+      }
+      if ($key =~ m/update_directs/i) {
+        my $delay = ($val) ? $val:undef;
+        $kernel->delay('twitter_direct_messages',$delay);
+      }
       $kernel->yield('save_config');
     } 
   }
