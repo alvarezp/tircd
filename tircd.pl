@@ -1628,6 +1628,7 @@ sub twitter_timeline {
             }
           }
        }
+    }
        
        if ($heap->{'config'}->{'show_realname'} == 1 && defined($item->{'entities'}->{'user_mentions'})) {
           foreach my $user (@{$item->{'entities'}->{'user_mentions'}}) {
