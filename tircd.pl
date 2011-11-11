@@ -1113,6 +1113,11 @@ sub twitter_send_dm {
 sub twitter_retweet_tweet {
     my($kernel, $heap, $tweet_id) = @_[KERNEL, HEAP, ARG0];
 
+    unless($tweet_id) {
+        $kernel->yield('user_msg','PRIVMSG',$heap->{'username'},"#twitter","Retweet requires a tweet-id.");
+        return;
+    }
+
     $kernel->post('logger','log','Retweeting status:'. $tweet_id);
     my $rt = eval { $heap->{'twitter'}->retweet($tweet_id) };
     my $error = $@;

@@ -34,11 +34,14 @@ L<List::Util>
 
 L<HTML::Entities>
 
+L<Digest::SHA1>
 
 
-You can install them all by running:
+If you're using a redhat or debian based system, attempt to use the distrobutions CPAN module packages, in yum or apt.
 
-C<cpan -i POE POE::Filter::IRCD Net::Twitter::Lite JSON::Any Time::Local File::Glob IO::File LWP::UserAgent Storable URI List::Util HTML::Entities>
+To install all modules via CPAN:
+
+B<cpan -i POE POE::Filter::IRCD Net::Twitter::Lite JSON::Any Time::Local File::Glob IO::File LWP::UserAgent Storable URI List::Util HTML::Entities Digest::SHA1>
 
 =head1 USAGE
 
@@ -46,7 +49,7 @@ C<cpan -i POE POE::Filter::IRCD Net::Twitter::Lite JSON::Any Time::Local File::G
 
 =item Running tircd
 
-C<./tircd.pl [/path/to/tircd.cfg]>
+B<./tircd.pl [/path/to/tircd.cfg]>
 
 When started, tircd will look for a configuration file in the following places:
 
@@ -64,17 +67,23 @@ You can specify an alternate path to the configuration file on the commandline i
 
 By default, tircd listens on localhost port 6667.
 
-Connect to tircd, using your twitter username as your NICK. Send your twitter password with the PASS command. 
+The first time you connect with a new twitter account you must specify a B<tircd> password for that nick. This password does not have to (and should not) be the same as your twitter password. This password will protect your tircd account from unauthorized usage. 
 
-With many irc clients you can do this by issuing the command /SERVER running tircd? 6667 <your twitter password> <your twitter username>. Check your client's documentation for the appropirate syntax. 
+B<The above password is to protect your tircd account, and is not related to your twitter account. The tircd nick password will only be saved once you have logged into Twitter>
 
-If this is your first connection tircd needs to be authorized to connect to twitter. This is done using OAuth.  Tircd will make a challenege to twitter, and twitter will provide a link to tircd for you to authorize the connection. Follow the link, make sure you are logged into twitter as the user you wish to use tircd as, and then click Allow to allow the connection. Twitter will then present you with a PIN number. To complete your connection to tircd, type: /stats pin <PIN NUMBER>. On some clients that honor the irc protocol and do not expect you to be sending a stats command before connecting you may have to type: /quote stats pin <PIN NUMBER>. Tircd will then attempt to authorize the connection using the provided PIN. 
+With many irc clients you can do this by issuing the command /SERVER localhost 6667 <B<tircd> password> <B<twitter> username>. Check your client's documentation for the appropirate syntax. 
+
+Tircd will make an OAuth challenege to Twitter, and Twitter will return a link to a page where you can authorize the connection. This link will appear in your IRC connection status window.
+
+Make sure you are either logged into twitter as the account you plan to use, or not logged in. Click the authorize link and log-in, then click "Allow". Twitter will then present you with a PIN number. B<To complete your connection to tircd>, type: /stats pin <PIN NUMBER>. On some clients you may have to type: /quote stats pin <PIN NUMBER>. 
+
+If the PIN is accepted by Twitter, the connection will be established. You may now join #twitter to begin. If the PIN is not accepted, another authorization link will be generated.
 
 =over
 
-=item Connecting with password
+=item Account password protection
 
-If your tircd installation is running in a shared environment (etiher listening on the localhost address on a shared computer, or listening on a public IP) you might want to password protect your account, or anyone can access your twitter account knowing the server address and your twitter username.
+If your tircd installation is running in a shared environment (either listening on the localhost address on a shared computer, or listening on a public IP) you might want to password protect your account, or anyone can access your twitter account knowing the server address and your twitter username.
 B<Your tircd-password do NOT need to be (and should not be!) the same as your twitter password.>
 
 Tircd supports password protection in the following way.
@@ -101,18 +110,19 @@ There is currently no way of regaining access to your account if you forget it. 
 
 =head2 After connecting
 
-Once connected JOIN #twitter to get started.  The channel #twitter is where you will perform most opertions
+Once connected JOIN #twitter to get started.  The channel #twitter is where you will perform most opertions.
 
 =over
 
 =item Updating your status
 
 To update your status on twitter, simply send a message starting with "!t " to the #twitter channel.  The server will keep your most recent update in the topic at all times.
-If you want to auto send everything you type in the #twitter channel, you can set the config option "auto_post" to 1. Either in tircd.conf or via the /stats command
+
+If you want to have all message you send to #twitter posted as tweets, you can set the config option "auto_post" to 1. Either in tircd.conf or via the /stats command. Messages beginning with an exclamation point ("!") will still be processed as commands, not tweeted.
 
 =item Getting your friend's status
 
-When users you follow update their status, it will be sent to the channel as a message from them.
+When users you follow update their status, it will be sent to the channel as a message from them. Each status will be preceded by a 3 letter identifier such as [a7f]. This identifier is used for retweeting and replying to tweets.
 
 @replies are also sent to the channel as messages.
 
@@ -205,9 +215,11 @@ B<!help> - Shows this help message.
 
 =head1 AUTHOR
 
-Chris Nelson <cnelson@crazybrain.org>
-Tim Sogard <tircd@timsogard.com>
-Ola Thoresen <olen@inni.no>
+Tim Sogard <tircd@timsogard.com> [2010-2011]
+
+Ola Thoresen <olen@inni.no> [2010-2011]
+
+Chris Nelson <cnelson@crazybrain.org>  [2009]
 
 =head1 LICENSE
 
@@ -238,4 +250,6 @@ L<URI>
 L<List::Util>
 
 L<HTML::Entities>
+
+L<Digest::SHA1>
 
