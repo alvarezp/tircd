@@ -1,3 +1,20 @@
+=== v. 2011-11-10-01 ==
+FEATURES
+* Added the tircd bot, offerbot style control, allows for retweeting and replying (which don't fit scope of IRC metaphor) plus most other api functions
+* Can now check length of text (useful for conforming to 140 char restriction)
+* Added max_splits to config to prohibit overly long messages from being considered for splitting and posting
+
+FIXES
+* Check whether config save successful, alert user.
+* Moved channel freezing code to shutdown, where belongs, instead of save
+* Abstracted message splitting, cleaned up alerting
+* Moved msg splitting into posting functions
+* Added more debugging msgs, more levels of debug
+* Added all relevant user control settings to config file, expanded documentation in config
+* Refactored tircdbot to use proccess table, easier to expand
+* Catch changes to update_timeline and update_direct_messages settings, kick off or kill timers as appropriate.
+* Allow for ~ (home alias) in storage_path setting
+
 === v. 2011-10-18-01 ==
 * Add timestamps to !conversations
 * Fix a bug where non-existing slot-di would crash tircd
