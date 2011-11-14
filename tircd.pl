@@ -1370,31 +1370,35 @@ sub irc_kick {
     $kernel->yield('server_reply',442,$chan,"You're not on that channel");
     return;
   }
-  
-  if (!exists $heap->{'channels'}->{$chan}->{'names'}->{$target}) {
+
+  # case insensitive kicks, returns correct hash key so kick/delete works right
+  my @matches = grep { m/^$target$/i } keys %{$heap->{'channels'}->{$chan}->{'names'}};
+  unless (scalar(@matches) == 1) {
     $kernel->yield('server_reply',441,$target,$chan,"They aren't on that channel");
     return;
   }
+
+  my ($kickee) = @matches;
   
   if ($chan ne '#twitter') {
-    delete $heap->{'channels'}->{$chan}->{'names'}->{$target};
-    $kernel->yield('user_msg','KICK',$heap->{'username'},$chan,$target,$target);
+    delete $heap->{'channels'}->{$chan}->{'names'}->{$kickee};
+    $kernel->yield('user_msg','KICK',$heap->{'username'},$chan,$kickee,$kickee);
     return;
   }
   
-  my $result = eval { $heap->{'twitter'}->destroy_friend($target) };
+  my $result = eval { $heap->{'twitter'}->destroy_friend($kickee) };
   my $error = $@;
   if ($result) {
-    $kernel->call($_[SESSION],'remfriend',$target);
-    delete $heap->{'channels'}->{$chan}->{'names'}->{$target};
-    $kernel->yield('user_msg','KICK',$heap->{'username'},$chan,$target,$target);
-    $kernel->post('logger','log',"Stoped following $target",$heap->{'username'});
+    $kernel->call($_[SESSION],'remfriend',$kickee);
+    delete $heap->{'channels'}->{$chan}->{'names'}->{$kickee};
+    $kernel->yield('user_msg','KICK',$heap->{'username'},$chan,$kickee,$kickee);
+    $kernel->post('logger','log',"Stoped following $kickee",$heap->{'username'});
   } else {
     if (ref $error && $error->isa("Net::Twitter::Lite::Error") && $error->code() >= 400) {
       $kernel->call($_[SESSION],'twitter_api_error','Unable to unfollow user.',$error);    
     } else {
-      $kernel->yield('server_reply',441,$target,$chan,"They aren't on that channel");  
-      $kernel->post('logger','log',"Attempted to unfollow user ($target) we weren't following",$heap->{'username'});
+      $kernel->yield('server_reply',441,$kickee,$chan,"They aren't on that channel");  
+      $kernel->post('logger','log',"Attempted to unfollow user ($kickee) we weren't following",$heap->{'username'});
     }
   }  
 

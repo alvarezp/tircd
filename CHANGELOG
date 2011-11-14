@@ -14,6 +14,7 @@ FIXES
 * Refactored tircdbot to use proccess table, easier to expand
 * Catch changes to update_timeline and update_direct_messages settings, kick off or kill timers as appropriate.
 * Allow for ~ (home alias) in storage_path setting
+* Allow for case insensitive kicking
 
 === v. 2011-10-18-01 ==
 * Add timestamps to !conversations
