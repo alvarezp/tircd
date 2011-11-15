@@ -339,12 +339,10 @@ sub twitter_oauth_login_begin {
 		$heap->{'config'}   = eval {retrieve($config{'storage_path'} . '/' . $heap->{'username'} . '.config');};
 	} 
 	# if tokens exist in users config, attempt to re-use
-	# TODO allow users to specify no store of access tokens
 	if ($heap->{'config'}->{'access_token'} && $heap->{'config'}->{'access_token_secret'}) {
-		# If password is set in User.conf - check that is is correct
-		# Currently just checking the length to see that it is a SHA1-sum but that is a bit silly as we could change algorithm
-		if (length($heap->{'config'}->{'password'}) == 27) {
-			if (sha1_base64($heap->{'password'}) ne $heap->{'config'}->{'password'}) {
+		# If password is set in user state - check that is is correct
+		if ($heap->{'config'}->{'password'} =~ m#[a-zA-Z0-9+/]{27}# ) {
+			if ($heap->{'password'} ne $heap->{'config'}->{'password'}) {
 				$kernel->post('logger','log','Connection refused with the supplied credentials.',$heap->{'username'});
 				$kernel->yield('server_reply',464,'Connection refused with the supplied credentials.');
 				$kernel->yield('shutdown'); #disconnect 'em if we cant verify password
@@ -459,11 +457,9 @@ sub tircd_setup_authenticated_user {
 
 	# If the client has connected with a password, and is authorized by twitter, 
 	# encrypt and store password if it is not already stored
-	if ($heap->{'password'}) {
-		if ($heap->{'config'}->{'password'} ne sha1_base64($heap->{'password'})) {
-        		$heap->{'config'}->{'password'} = sha1_base64($heap->{'password'});
-  			$kernel->yield('save_config');
-		}
+	if ($heap->{'password'} && !($heap->{'config'}->{'password'})) {
+        $heap->{'config'}->{'password'} = $heap->{'password'};
+        $kernel->yield('save_config');
 	}
 
 	if (!$heap->{'channels'}) {
@@ -681,7 +677,7 @@ sub irc_reply {
 
 sub irc_pass {
   my ($heap, $data) = @_[HEAP, ARG0];
-  $heap->{'password'} = $data->{'params'}[0]; #stash the password for later
+  $heap->{'password'} = sha1_base64($data->{'params'}[0]); #encrypt stash the password for later
 }
 
 sub irc_nick {
