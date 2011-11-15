@@ -1263,10 +1263,11 @@ sub irc_twitterbot_command {
         { 'cmdmatch' => 'h|help',
             'help' => "!help - Shows this help message.",
             'exec' => sub {
-                    $kernel->yield('user_msg','PRIVMSG',"tircdbot","#twitter","Tircd Command List");
-                    $kernel->yield('user_msg','PRIVMSG',"tircdbot","#twitter","Commands listed in [abc|a] form mean that 'a' is an alias for 'abc'");
+                    $kernel->yield('user_msg','PRIVMSG',"tircdbot","#twitter","Sending you the help screen as a message.");
+                    $kernel->yield('user_msg','PRIVMSG',"tircdbot",$heap->{'username'},"Tircd Command List");
+                    $kernel->yield('user_msg','PRIVMSG',"tircdbot",$heap->{'username'},"Commands listed in [abc|a] form mean that 'a' is an alias for 'abc'");
                     for (@proc) {
-                        $kernel->yield('user_msg','PRIVMSG',"tircdbot","#twitter",$_->{'help'});
+                        $kernel->yield('user_msg','PRIVMSG',"tircdbot",$heap->{'username'},$_->{'help'});
                     }
             },
         },
