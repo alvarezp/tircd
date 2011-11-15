@@ -437,7 +437,7 @@ sub tircd_setup_authenticated_user {
 		$heap->{'channels'} = eval {retrieve($config{'storage_path'} . '/' . $heap->{'username'} . '.channels');};
 	} 
 
-	my @user_settings = qw(update_timeline update_directs timeline_count long_messages min_length max_splits join_silent filter_self shorten_urls convert_irc_replies access_token access_token_secret auto_post show_realname expand_urls password);
+	my @user_settings = qw(update_timeline update_directs timeline_count long_messages min_length max_splits join_silent filter_self shorten_urls convert_irc_replies store_access_tokens access_token access_token_secret auto_post show_realname expand_urls password);
 
 	# copy base config for user if prior config failed to exist/retrieve
    # TODO: where does original heap config come from
@@ -594,15 +594,22 @@ sub tircd_save_config {
     }
   }
   
-  #if defined, save our data for next time
+  #if we can, save user_settings and state for next time
   if ($config{'storage_path'} && -d $config{'storage_path'} && -w $config{'storage_path'}) {
 
-    # save state in special channel
+    # save incoming tweet state in hidden channel
     $heap->{'channels'}->{'__STATE'}->{'timeline_since_id'} = $heap->{'timeline_since_id'};
     $heap->{'channels'}->{'__STATE'}->{'replies_since_id'} = $heap->{'replies_since_id'};
     $heap->{'channels'}->{'__STATE'}->{'direct_since_id'} = $heap->{'direct_since_id'};
+
+    # clip out tokens if requested
+    my $store_config = $heap->{'config'};
+    if ($heap->{'config'}->{'store_access_tokens'} == 0) {
+      delete $store_config->{'access_token'};
+      delete $store_config->{'access_token_secret'};
+    }
     
-    eval {store($heap->{'config'},$config{'storage_path'} . '/' . $heap->{'username'} . '.config');};
+    eval {store($store_config,$config{'storage_path'} . '/' . $heap->{'username'} . '.config');};
     eval {store($heap->{'channels'},$config{'storage_path'} . '/' . $heap->{'username'} . '.channels');};
     $kernel->post('logger','log','Saving configuration.',$heap->{'username'});  
     return 1;
