@@ -388,7 +388,7 @@ sub twitter_oauth_login_finish {
 
 	# make token ask if pin provided
 	if ($pin) {
-		my ($access_token, $access_token_sec, $user_id, $username) = eval { $heap->{'twitter'}->request_access_token(verifier=>$pin) };
+		my ($access_token, $access_token_secret, $user_id, $username) = eval { $heap->{'twitter'}->request_access_token(verifier=>$pin) };
 		if ($@) {
 			if ($@ =~ m/401/) {
 				$kernel->yield('server_reply',510,'Unable to authorize with this PIN. Please try again.');
@@ -408,7 +408,7 @@ sub twitter_oauth_login_finish {
 
 		# store tokens and user info in config for later use.
 		$heap->{'config'}->{'access_token'} = $access_token;
-		$heap->{'config'}->{'access_token_secret'} = $access_token_sec;
+		$heap->{'config'}->{'access_token_secret'} = $access_token_secret;
 		$heap->{'config'}->{'user_id'} = $user_id;
 		$heap->{'config'}->{'username'} = $username;
 		$heap->{'username'} = $username;
