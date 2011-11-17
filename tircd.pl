@@ -362,9 +362,17 @@ sub twitter_oauth_login_begin {
 }
 
 # direct user to pin site
-# TODO: run get_authentication_url first, in eval, check reply
 sub twitter_oauth_pin_ask {
 	my ($kernel, $heap) = @_[KERNEL,HEAP];
+
+    my $authorization_url = eval { $heap->{'twitter'}->get_authorization_url() };
+    if ($@) {
+	    $kernel->yield('server_reply',599,"Unable to retrieve authentication URL from Twitter.");
+	    $kernel->yield('server_reply',599,"The Twitter API seems to be experiencing problems. Try again momentarily.");
+	    $kernel->yield('shutdown');
+        return 1;
+    }
+
 	$kernel->yield('server_reply',463,"Please authorize this connection at:");
 	$kernel->yield('server_reply',463,$heap->{'twitter'}->get_authorization_url);
 	$kernel->yield('server_reply',463,"To continue connecting, type /stats pin <PIN>, where <PIN> is the PIN returned by the twitter authorize page.");
@@ -437,13 +445,7 @@ sub tircd_setup_authenticated_user {
 
 	my @user_settings = qw(update_timeline update_directs timeline_count long_messages min_length max_splits join_silent filter_self shorten_urls convert_irc_replies store_access_tokens access_token access_token_secret auto_post show_realname expand_urls password);
 
-	# copy base config for user if prior config failed to exist/retrieve
-   # TODO: where does original heap config come from
-   # TODO: oauth token storage invalidates following
-	if (!$heap->{'config'}) {
-		my %copy = %config;
-		$heap->{'config'} = \%copy;
-	}
+	# update users config to contain all necessary settings, weed out unnecessary
 	foreach my $s (@user_settings) {
 		if (!$heap->{'config'}->{$s}) {
 			$heap->{'config'}->{$s} = $config{$s};
@@ -1563,15 +1565,19 @@ sub twitter_timeline {
   my ($kernel, $heap, $silent) = @_[KERNEL, HEAP, ARG0];
 
   #get updated messages
-  my $timeline;
-  my $error;
+  my ($timeline, $error);
+
+  my %timeline_request = {
+    count => $heap->{'config'}->{'timeline_count'},
+    include_entities => 1,
+  };
+
   if ($heap->{'timeline_since_id'}) {
-    $timeline = eval { $heap->{'twitter'}->home_timeline({count => $heap->{'config'}->{'timeline_count'}, since_id => $heap->{'timeline_since_id'}, include_entities => 1}) };
-    $error = $@;
-  } else {
-    $timeline = eval { $heap->{'twitter'}->home_timeline({count => $heap->{'config'}->{'timeline_count'}, include_entities => 1}) };
-    $error = $@;
+    $timeline_request{'since_id'} = $heap->{'timeline_since_id'};
   }
+
+  $timeline = eval { $heap->{'twitter'}->home_timeline(\%timeline_request) };
+  $error = $@;
 
   #sometimes the twitter API returns undef, so we gotta check here
   if (!$timeline || @$timeline == 0 || @{$timeline}[0]->{'id'} < $heap->{'timeline_since_id'} ) {
