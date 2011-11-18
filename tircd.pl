@@ -1687,9 +1687,9 @@ sub twitter_timeline {
       # Adding a fake part again imediately if they are not a friend, to make it clear what happens
       # Also, only adding them to 'friends' if they really are friends
 
-      $kernel->post('logger','log','Getting userinfo for ' . $item->{'user'}->{'screen_name'},$heap->{'username'});
+      $kernel->post('logger','log','Getting userinfo for ' . $item->{'user'}->{'screen_name'},$heap->{'username'}) if $config{'debug'} >=2;
       $is_following = eval { $heap->{'twitter'}->show_user($item->{'user'}->{'screen_name'}) };
-      $kernel->post('logger','log','Got name: ' . $is_following->{'name'} . ' following: ' . $is_following->{'following'}, $heap->{'username'});
+      $kernel->post('logger','log','Got name: ' . $is_following->{'name'} . ' following: ' . $is_following->{'following'}, $heap->{'username'}) if $config{'debug'} >=2;
       if ($is_following->{'following'} == 1) {
 	# We are following this user, add to 'friends'
         push(@{$heap->{'friends'}},$tmp);
