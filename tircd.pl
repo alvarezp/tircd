@@ -443,7 +443,7 @@ sub tircd_setup_authenticated_user {
 		$heap->{'channels'} = eval {retrieve($config{'storage_path'} . '/' . $heap->{'username'} . '.channels');};
 	} 
 
-	my @user_settings = qw(update_timeline update_directs timeline_count long_messages min_length max_splits join_silent filter_self shorten_urls convert_irc_replies store_access_tokens access_token access_token_secret auto_post show_realname expand_urls password);
+	my @user_settings = qw(update_timeline update_directs timeline_count long_messages min_length max_splits join_silent filter_self shorten_urls convert_irc_replies store_access_tokens access_token access_token_secret auto_post display_ticker_slots show_realname expand_urls password);
 
 	# update users config to contain all necessary settings, weed out unnecessary
 	foreach my $s (@user_settings) {
@@ -1674,7 +1674,8 @@ sub twitter_timeline {
     my $ticker_slot = get_timeline_ticker_slot();
     $heap->{'timeline_ticker'}->{$ticker_slot} = $item->{'id'};
     $item->{'tircd_ticker_slot'} = $ticker_slot;
-    $kernel->post('logger','log','Slot ' . $ticker_slot . ' contains tweet with id: ' . $item->{'id'},$heap->{'username'}) if ($config{'debug'} >= 2);
+    $item->{'tircd_ticker_slot_display'} = ($heap->{'config'}->{'display_ticker_slots'}) ? '[' . $ticker_slot . '] ' : '';
+    $kernel->post('logger','log','Slot ' . $ticker_slot . ' now contains tweet with id: ' . $item->{'id'},$heap->{'username'}) if ($config{'debug'} >= 2);
     
     if (my $friend = $kernel->call($_[SESSION],'getfriend',$item->{'user'}->{'screen_name'})) { #if we've seen 'em before just update our cache
       $kernel->call($_[SESSION],'updatefriend',$tmp);
@@ -1720,15 +1721,15 @@ sub twitter_timeline {
             # TODO change filtering for realname / urls to happen here, along with general filtering
             # Fixing issue #81
             if(defined($item->{'retweeted_status'})) {
-              $kernel->yield('user_msg','PRIVMSG',$item->{'user'}->{'screen_name'},$chan,'[' . $item->{'tircd_ticker_slot'} . '] ' . 'RT @' . $item->{'retweeted_status'}->{'user'}->{'screen_name'} . ': ' . $item->{'retweeted_status'}->{'text'});
+              $kernel->yield('user_msg','PRIVMSG',$item->{'user'}->{'screen_name'},$chan,$item->{'tircd_ticker_slot_display'} . 'RT @' . $item->{'retweeted_status'}->{'user'}->{'screen_name'} . ': ' . $item->{'retweeted_status'}->{'text'});
             }
             else {
-              $kernel->yield('user_msg','PRIVMSG',$item->{'user'}->{'screen_name'},$chan,'[' . $item->{'tircd_ticker_slot'} . '] ' . $item->{'text'});
+              $kernel->yield('user_msg','PRIVMSG',$item->{'user'}->{'screen_name'},$chan,$item->{'tircd_ticker_slot_display'} . $item->{'text'});
             }
           }
           # - Send the message to the other channels the user is in if the user is not "me"
           if ($chan ne '#twitter' && exists $heap->{'channels'}->{$chan}->{'names'}->{$item->{'user'}->{'screen_name'}} && $item->{'user'}->{'screen_name'} ne $heap->{'username'}) {
-            $kernel->yield('user_msg','PRIVMSG',$item->{'user'}->{'screen_name'},$chan,'[' . $item->{'tircd_ticker_slot'} . '] ' . $item->{'text'});
+            $kernel->yield('user_msg','PRIVMSG',$item->{'user'}->{'screen_name'},$chan,$item->{'tircd_ticker_slot_display'} . $item->{'text'});
           }
           # - And set topic on the #twitter channel if user is me and the topic is not already set 
           if ($chan eq '#twitter' && $item->{'user'}->{'screen_name'} eq $heap->{'username'} && $item->{'text'} ne $heap->{'channels'}->{$chan}->{'topic'}) {
