@@ -1,11 +1,18 @@
-=== v. 2011-11-10-01 ==
+=== v. 2011-11-18-01 ==
 FEATURES
 * Added the tircd bot, offerbot style control, allows for retweeting and replying (which don't fit scope of IRC metaphor) plus most other api functions
+* Added settings related to tircdbot and how #twitter is handled. View the descriptions of these settings in the tircd.cfg.example file:
+ - auto_post
+ - display_ticker_slots
+ - store_access_tokens
+ - show_realname
+ - expand_urls
+ - password
+ - max_splits
 * Can now check length of text (useful for conforming to 140 char restriction)
 * Added max_splits to config to prohibit overly long messages from being considered for splitting and posting
 
 FIXES
-* Check whether config save successful, alert user.
 * Moved channel freezing code to shutdown, where belongs, instead of save
 * Abstracted message splitting, cleaned up alerting
 * Moved msg splitting into posting functions
@@ -15,6 +22,8 @@ FIXES
 * Catch changes to update_timeline and update_direct_messages settings, kick off or kill timers as appropriate.
 * Allow for ~ (home alias) in storage_path setting
 * Allow for case insensitive kicking
+* User settings set to '0' were being reset to default
+* Check whether authorization_url recieved when connecting
 
 === v. 2011-10-18-01 ==
 * Add timestamps to !conversations
