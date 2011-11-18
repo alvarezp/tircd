@@ -447,7 +447,7 @@ sub tircd_setup_authenticated_user {
 
 	# update users config to contain all necessary settings, weed out unnecessary
 	foreach my $s (@user_settings) {
-		if (!$heap->{'config'}->{$s}) {
+		unless (exists($heap->{'config'}->{$s})) {
 			$heap->{'config'}->{$s} = $config{$s};
 		}
 	}
