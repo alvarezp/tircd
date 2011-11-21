@@ -1567,10 +1567,10 @@ sub twitter_timeline {
   #get updated messages
   my ($timeline, $error);
 
-  my %timeline_request = {
+  my %timeline_request = (
     count => $heap->{'config'}->{'timeline_count'},
     include_entities => 1,
-  };
+  );
 
   if ($heap->{'timeline_since_id'}) {
     $timeline_request{'since_id'} = $heap->{'timeline_since_id'};
