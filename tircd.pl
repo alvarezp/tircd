@@ -1721,7 +1721,7 @@ sub twitter_timeline {
             # TODO change filtering for realname / urls to happen here, along with general filtering
             # Fixing issue #81
             if(defined($item->{'retweeted_status'})) {
-              $kernel->yield('user_msg','PRIVMSG',$item->{'user'}->{'screen_name'},$chan,$item->{'tircd_ticker_slot_display'} . 'RT @' . $item->{'retweeted_status'}->{'user'}->{'screen_name'} . ': ' . $item->{'retweeted_status'}->{'text'});
+              $kernel->yield('user_msg','PRIVMSG',$item->{'retweeted_status'}->{'user'}->{'screen_name'},$chan,$item->{'tircd_ticker_slot_display'} . $item->{'retweeted_status'}->{'text'} . ' (RT by ' . $item->{'user'}->{'screen_name'} . ')');
             }
             else {
               $kernel->yield('user_msg','PRIVMSG',$item->{'user'}->{'screen_name'},$chan,$item->{'tircd_ticker_slot_display'} . $item->{'text'});
