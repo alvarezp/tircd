@@ -24,6 +24,7 @@ use Digest::SHA1  qw(sha1_base64);
 
 
 my $VERSION = '.21.1';
+my $TIMELINE_CHANNEL = '#twitter';
 
 # consumer key/secret in the executable instead of config because it should not be edited by user
 my $tw_oauth_con_key = "4AQca4GFiWWaifUknq35Q";
@@ -128,7 +129,7 @@ POE::Component::Server::TCP->new(
     AWAY => \&irc_away,
     TOPIC => \&irc_topic,
 
-    '#twitter' => \&channel_twitter,
+    $TIMELINE_CHANNEL => \&channel_twitter,
     
     server_reply => \&irc_reply,
     user_msg	 => \&irc_user_msg,
@@ -245,7 +246,7 @@ sub twitter_api_error {
     $kernel->post('logger','log',$msg.' (Unknown error from Twitter API).',$heap->{'username'});  
 
   }
-  $kernel->yield('server_reply',461,'#twitter',$msg);
+  $kernel->yield('server_reply',461,$TIMELINE_CHANNEL,$msg);
 }
 
 #update a friend's info in the heap
@@ -741,7 +742,7 @@ sub irc_join {
   my @chans = split(/\,/,$data->{'params'}[0]);
   foreach my $chan (@chans) {
     $chan =~ s/\s//g;
-    #see if we've registered an event handler for a 'special channel' (currently only #twitter)
+    #see if we've registered an event handler for a 'special channel' (currently only the timeline channel)
     if ($kernel->call($_[SESSION],$chan,$chan)) {
       next;
     }
@@ -812,8 +813,8 @@ sub irc_mode { #ignore all mode requests except ban which is a block (send back 
       $kernel->yield('server_reply',368,$target,'End of channel ban list');
       return;
     }
-    if ($target eq '#twitter') {
-      if ($mode eq '+b' && $target eq '#twitter') {
+    if ($target eq $TIMELINE_CHANNEL) {
+      if ($mode eq '+b' && $target eq $TIMELINE_CHANNEL) {
         my $user = eval { $heap->{'twitter'}->create_block($nick) };
         my $error = $@;
         if ($user) {
@@ -826,7 +827,7 @@ sub irc_mode { #ignore all mode requests except ban which is a block (send back 
           }
         }
         return;        
-      } elsif ($mode eq '-b' && $target eq '#twitter') {
+      } elsif ($mode eq '-b' && $target eq $TIMELINE_CHANNEL) {
         my $user = eval { $heap->{'twitter'}->destroy_block($nick) };
         my $error = $@;
         if ($user) {
@@ -1014,7 +1015,7 @@ sub irc_privmsg {
       return;
     }
   
-    $target = '#twitter'; #we want to force all topic changes and what not into twitter for now
+    $target = $TIMELINE_CHANNEL; #we want to force all topic changes and what not into twitter for now
 
     # We want to handle !-commands even if auto_post is set to true
     if ($msg =~ /^\s*!/i) {
@@ -1062,7 +1063,7 @@ sub twitter_post_tweet {
 
 	#Tweak the @replies
    if ($msg =~ /^(\w+)\: / && $heap->{'config'}->{'convert_irc_replies'}) {
-	# @Olatho - changing ALL first-words that end with : to @, not only nicks on #Twitter
+	# @Olatho - changing ALL first-words that end with : to @, not only nicks on the timeline channel
 	# - I sometimes reply to people that I do not follow, and want them converted as well
       $msg =~ s/^(\w+)\: /\@$1 /;
    }
@@ -1122,7 +1123,7 @@ sub twitter_retweet_tweet {
     my($kernel, $heap, $tweet_id) = @_[KERNEL, HEAP, ARG0];
 
     unless($tweet_id) {
-        $kernel->yield('user_msg','PRIVMSG',$heap->{'username'},"#twitter","Retweet requires a tweet-id.");
+        $kernel->yield('user_msg','PRIVMSG',$heap->{'username'},$TIMELINE_CHANNEL,"Retweet requires a tweet-id.");
         return;
     }
 
@@ -1130,19 +1131,19 @@ sub twitter_retweet_tweet {
     my $rt = eval { $heap->{'twitter'}->retweet($tweet_id) };
     my $error = $@;
     if (!$rt && ref $error && $error->isa("Net::Twitter::Lite::Error") && $error->code() >= 400) {
-        $kernel->yield('user_msg','PRIVMSG',$heap->{'username'},"#twitter","Retweet failed. Try again shortly.");
+        $kernel->yield('user_msg','PRIVMSG',$heap->{'username'},$TIMELINE_CHANNEL,"Retweet failed. Try again shortly.");
         $kernel->call($_[SESSION],'twitter_api_error','Unable to retweet status.',$error);
         return;
     } 
 
-    $kernel->yield('user_msg','PRIVMSG',$heap->{'username'},"#twitter","Retweet Successful.");
+    $kernel->yield('user_msg','PRIVMSG',$heap->{'username'},$TIMELINE_CHANNEL,"Retweet Successful.");
 }
 
 sub twitter_reply_to_tweet {
     my($kernel, $heap, $tweet_id, $msg) = @_[KERNEL, HEAP, ARG0, ARG1];
     $kernel->post('logger','log',"Replying to ($tweet_id) with ($msg)",$heap->{'username'}) if $config{'debug'} >=2;
     my $errd;
-    my $target = "#twitter";
+    my $target = $TIMELINE_CHANNEL;
 
     my @msg_parts = $kernel->call($_[SESSION],'get_message_parts',$target, $msg);
 
@@ -1155,13 +1156,13 @@ sub twitter_reply_to_tweet {
         my $error = $@;
         if (!$update && ref $error && $error->isa("Net::Twitter::Lite::Error") && $error->code() >= 400) {
             $errd = 1;
-            $kernel->yield('user_msg','PRIVMSG',$heap->{'username'},"#twitter","Reply failed.");
+            $kernel->yield('user_msg','PRIVMSG',$heap->{'username'},$TIMELINE_CHANNEL,"Reply failed.");
             $kernel->call($_[SESSION],'twitter_api_error','Unable to update status.',$error);
             return;
         } 
     }
     unless ($errd) {
-        $kernel->yield('user_msg','PRIVMSG',$heap->{'username'},"#twitter","Reply Successful.");
+        $kernel->yield('user_msg','PRIVMSG',$heap->{'username'},$TIMELINE_CHANNEL,"Reply Successful.");
     }
 }
 
@@ -1178,7 +1179,7 @@ sub irc_twitterbot_command {
     my @proc;
     @proc = (
         { 'cmdmatch' => 'refresh|up|update',
-            'help' => "![update|up|refresh] - Updates the #twitter stream immediately.",
+            'help' => "![update|up|refresh] - Updates the timeline immediately.",
             'exec' => sub {
                     $kernel->yield('twitter_timeline');
                     $kernel->yield('twitter_direct_messages');
@@ -1190,7 +1191,7 @@ sub irc_twitterbot_command {
             'help' => '![length|l] <text> - Returns the length in characters of a message.',
             'exec' => sub {
                     my ($cmd, @msg) = @_;
-                    $kernel->yield('user_msg','PRIVMSG',"tircdbot","#twitter","Number of characters: " . length(join(" ",@msg)));
+                    $kernel->yield('user_msg','PRIVMSG',"tircdbot",$TIMELINE_CHANNEL,"Number of characters: " . length(join(" ",@msg)));
             },
         },
 
@@ -1199,7 +1200,7 @@ sub irc_twitterbot_command {
             'help' => "![tweet|t] <text of tweet> - Posts the given text as an update to your feed.",
             'exec' => sub {
                     my ($cmd, @msg) = @_;
-                    $kernel->yield('twitter_post_tweet', '#twitter', join(" ",@msg));
+                    $kernel->yield('twitter_post_tweet', $TIMELINE_CHANNEL, join(" ",@msg));
             },
         },
 
@@ -1239,7 +1240,7 @@ sub irc_twitterbot_command {
             'help' => '![add|invite|follow] <username> - Begin following the specified twitter username.',
             'exec' => sub {
                     my ($cmd, $add_user) = @_;
-                    my $data = { 'params' => [$add_user, '#twitter'] };
+                    my $data = { 'params' => [$add_user, $TIMELINE_CHANNEL] };
                     $kernel->yield('INVITE', $data);
             },
         },
@@ -1249,7 +1250,7 @@ sub irc_twitterbot_command {
             'help' => '![remove|kick|unfollow] <username> - Remove the username from the list of people your account follows.',
             'exec' => sub {
                     my ($cmd, $del_user) = @_;
-                    my $data = { 'params' => [ '#twitter', $del_user ] };
+                    my $data = { 'params' => [ $TIMELINE_CHANNEL, $del_user ] };
                     $kernel->yield('KICK', $data);
             },
         },
@@ -1265,7 +1266,7 @@ sub irc_twitterbot_command {
         { 'cmdmatch' => 'h|help',
             'help' => "!help - Shows this help message.",
             'exec' => sub {
-                    $kernel->yield('user_msg','PRIVMSG',"tircdbot","#twitter","Sending you the help screen as a message.");
+                    $kernel->yield('user_msg','PRIVMSG',"tircdbot",$TIMELINE_CHANNEL,"Sending you the help screen as a message.");
                     $kernel->yield('user_msg','PRIVMSG',"tircdbot",$heap->{'username'},"Tircd Command List");
                     $kernel->yield('user_msg','PRIVMSG',"tircdbot",$heap->{'username'},"Commands listed in [abc|a] form mean that 'a' is an alias for 'abc'");
                     for (@proc) {
@@ -1287,7 +1288,7 @@ sub irc_twitterbot_command {
                 if ($p->{'twid'}) {
                     my $tw_id = $heap->{'timeline_ticker'}->{$arg[1]};
                     unless ($tw_id) {
-                        $kernel->yield('user_msg','PRIVMSG',"tircdbot","#twitter","Tweet id of: " . $arg[1] . " was not found.");
+                        $kernel->yield('user_msg','PRIVMSG',"tircdbot",$TIMELINE_CHANNEL,"Tweet id of: " . $arg[1] . " was not found.");
                         return;
                     }
                     $arg[1] = $tw_id;
@@ -1296,7 +1297,7 @@ sub irc_twitterbot_command {
                 &{$p->{'exec'}}(@arg);
                 return 1;
             } else {
-                $kernel->yield('user_msg','PRIVMSG',"tircdbot","#twitter",$p->{'help'});
+                $kernel->yield('user_msg','PRIVMSG',"tircdbot",$TIMELINE_CHANNEL,$p->{'help'});
                 return;
             }
         }
@@ -1319,16 +1320,16 @@ sub irc_invite {
     return;
   }
 
-  if ($chan ne '#twitter') { #if it's not our main channel, just fake the user in, if we already follow them
-    if (exists $heap->{'channels'}->{'#twitter'}->{'names'}->{$target}) {
-      $heap->{'channels'}->{$chan}->{'names'}->{$target} = $heap->{'channels'}->{'#twitter'}->{'names'}->{$target};
+  if ($chan ne $TIMELINE_CHANNEL) { #if it's not our main channel, just fake the user in, if we already follow them
+    if (exists $heap->{'channels'}->{$TIMELINE_CHANNEL}->{'names'}->{$target}) {
+      $heap->{'channels'}->{$chan}->{'names'}->{$target} = $heap->{'channels'}->{$TIMELINE_CHANNEL}->{'names'}->{$target};
       $kernel->yield('server_reply',341,$target,$chan);
       $kernel->yield('user_msg','JOIN',$target,$chan);
       if ($heap->{'channels'}->{$chan}->{'names'}->{$target} ne '') {
         $kernel->yield('server_reply','MODE',$chan,'+v',$target);
       }
     } else {
-      $kernel->yield('server_reply',481,"You must invite the user to the #twitter channel first.");    
+      $kernel->yield('server_reply',481,"You must invite the user to the $TIMELINE_CHANNEL channel first.");    
     }
     return;      
   }
@@ -1386,7 +1387,7 @@ sub irc_kick {
 
   my ($kickee) = @matches;
   
-  if ($chan ne '#twitter') {
+  if ($chan ne $TIMELINE_CHANNEL) {
     delete $heap->{'channels'}->{$chan}->{'names'}->{$kickee};
     $kernel->yield('user_msg','KICK',$heap->{'username'},$chan,$kickee,$kickee);
     return;
@@ -1433,7 +1434,7 @@ sub irc_topic {
   my $chan = $data->{'params'}[0];
   my $topic = $data->{'params'}[1];
   
-  return if $chan eq '#twitter';
+  return if $chan eq $TIMELINE_CHANNEL;
 
   if (!$heap->{'channels'}->{$chan}->{'joined'}) {
     $kernel->yield('server_reply',442,$chan,"You're not on that channel");
@@ -1694,15 +1695,15 @@ sub twitter_timeline {
 	# We are following this user, add to 'friends'
         push(@{$heap->{'friends'}},$tmp);
       }
-      # Join them to #twitter if they are not yourself
+      # Join them to the timeline channel if they are not yourself
       if (lc($item->{'user'}->{'screen_name'}) ne lc($heap->{'username'})) {
-        $kernel->yield('user_msg','JOIN',$item->{'user'}->{'screen_name'},'#twitter') unless ($silent);
+        $kernel->yield('user_msg','JOIN',$item->{'user'}->{'screen_name'},$TIMELINE_CHANNEL) unless ($silent);
         # Check if they should have voice (+v)
         if ($kernel->call($_[SESSION],'getfollower',$item->{'user'}->{'screen_name'})) {
-          $heap->{'channels'}->{'#twitter'}->{'names'}->{$item->{'user'}->{'screen_name'}} = '+';
-          $kernel->yield('server_reply','MODE','#twitter','+v',$item->{'user'}->{'screen_name'});
+          $heap->{'channels'}->{$TIMELINE_CHANNEL}->{'names'}->{$item->{'user'}->{'screen_name'}} = '+';
+          $kernel->yield('server_reply','MODE',$TIMELINE_CHANNEL,'+v',$item->{'user'}->{'screen_name'});
         } else {
-          $heap->{'channels'}->{'#twitter'}->{'names'}->{$item->{'user'}->{'screen_name'}} = '';
+          $heap->{'channels'}->{$TIMELINE_CHANNEL}->{'names'}->{$item->{'user'}->{'screen_name'}} = '';
         }
       }
     }
@@ -1715,8 +1716,8 @@ sub twitter_timeline {
     if ((lc($item->{'user'}->{'screen_name'}) ne lc($heap->{'username'}) || !$heap->{'config'}->{'filter_self'})) {
       if (!$silent) {
         foreach my $chan (keys %{$heap->{'channels'}}) {
-          # - Send the message to the #twitter-channel if it is different from my latest update (IE different from current topic)
-          if ($chan eq '#twitter' && exists $heap->{'channels'}->{$chan}->{'names'}->{$item->{'user'}->{'screen_name'}} && $item->{'text'} ne $heap->{'channels'}->{$chan}->{'topic'}) {
+          # - Send the message to the timeline channel if it is different from my latest update (IE different from current topic)
+          if ($chan eq $TIMELINE_CHANNEL && exists $heap->{'channels'}->{$chan}->{'names'}->{$item->{'user'}->{'screen_name'}} && $item->{'text'} ne $heap->{'channels'}->{$chan}->{'topic'}) {
             # TODO clean this logic block
             # TODO change filtering for realname / urls to happen here, along with general filtering
             # Fixing issue #81
@@ -1728,11 +1729,11 @@ sub twitter_timeline {
             }
           }
           # - Send the message to the other channels the user is in if the user is not "me"
-          if ($chan ne '#twitter' && exists $heap->{'channels'}->{$chan}->{'names'}->{$item->{'user'}->{'screen_name'}} && $item->{'user'}->{'screen_name'} ne $heap->{'username'}) {
+          if ($chan ne $TIMELINE_CHANNEL && exists $heap->{'channels'}->{$chan}->{'names'}->{$item->{'user'}->{'screen_name'}} && $item->{'user'}->{'screen_name'} ne $heap->{'username'}) {
             $kernel->yield('user_msg','PRIVMSG',$item->{'user'}->{'screen_name'},$chan,$item->{'tircd_ticker_slot_display'} . $item->{'text'});
           }
-          # - And set topic on the #twitter channel if user is me and the topic is not already set 
-          if ($chan eq '#twitter' && $item->{'user'}->{'screen_name'} eq $heap->{'username'} && $item->{'text'} ne $heap->{'channels'}->{$chan}->{'topic'}) {
+          # - And set topic on the timeline channel if user is me and the topic is not already set 
+          if ($chan eq $TIMELINE_CHANNEL && $item->{'user'}->{'screen_name'} eq $heap->{'username'} && $item->{'text'} ne $heap->{'channels'}->{$chan}->{'topic'}) {
             $kernel->yield('user_msg','TOPIC',$heap->{'username'},$chan,"$heap->{'username'}'s last update: ".$item->{'text'});
             $heap->{'channels'}->{$chan}->{'topic'} = $item->{'text'};
           }            
@@ -1742,9 +1743,9 @@ sub twitter_timeline {
     #TODO easier way to judge self?
     if (lc($item->{'user'}->{'screen_name'}) ne lc($heap->{'username'})) {
       if (($is_following->{'status'}) && ($is_following->{'following'} == 0)) {
-        # If we are not following them - have them part #twitter again
-        $kernel->yield('user_msg','PART',$item->{'user'}->{'screen_name'},'#twitter') unless ($silent);
-        delete $heap->{'channels'}->{'#twitter'}->{'names'}->{$item->{'user'}->{'screen_name'}};
+        # If we are not following them - have them part the timeline channel again
+        $kernel->yield('user_msg','PART',$item->{'user'}->{'screen_name'},$TIMELINE_CHANNEL) unless ($silent);
+        delete $heap->{'channels'}->{$TIMELINE_CHANNEL}->{'names'}->{$item->{'user'}->{'screen_name'}};
       }
     }
   }
@@ -1779,19 +1780,19 @@ sub twitter_direct_messages {
   }
 
   foreach my $item (sort {$a->{'id'} <=> $b->{'id'}} @{$data}) {
-    # Do not join #twitter if it is me
+    # Do not join the timeline channel if it is me
     if (lc($item->{'sender'}->{'screen_name'}) ne lc($heap->{'username'})) {
       if (!$kernel->call($_[SESSION],'getfriend',$item->{'sender'}->{'screen_name'})) {
         my $tmp = $item->{'sender'};
         $tmp->{'status'} = $item;
         $tmp->{'status'}->{'text'} = '(dm) '.$tmp->{'status'}->{'text'};
         push(@{$heap->{'friends'}},$tmp);
-        $kernel->yield('user_msg','JOIN',$item->{'sender'}->{'screen_name'},'#twitter');
+        $kernel->yield('user_msg','JOIN',$item->{'sender'}->{'screen_name'},$TIMELINE_CHANNEL);
         if ($kernel->call($_[SESSION],'getfollower',$item->{'user'}->{'screen_name'})) {
-          $heap->{'channels'}->{'#twitter'}->{'names'}->{$item->{'user'}->{'screen_name'}} = '+';
-          $kernel->yield('server_reply','MODE','#twiter','+v',$item->{'user'}->{'screen_name'});        
+          $heap->{'channels'}->{$TIMELINE_CHANNEL}->{'names'}->{$item->{'user'}->{'screen_name'}} = '+';
+          $kernel->yield('server_reply','MODE',$TIMELINE_CHANNEL,'+v',$item->{'user'}->{'screen_name'});        
         } else {
-          $heap->{'channels'}->{'#twitter'}->{'names'}->{$item->{'user'}->{'screen_name'}} = '';
+          $heap->{'channels'}->{$TIMELINE_CHANNEL}->{'names'}->{$item->{'user'}->{'screen_name'}} = '';
         }
       }
     }
@@ -1919,7 +1920,7 @@ sub twitter_conversation {
     $kernel->call($_[SESSION],'twitter_api_error','Unable to get post.',$error);   
     return;
   }
-  my $chan = '#twitter';
+  my $chan = $TIMELINE_CHANNEL;
   if ($status->{'in_reply_to_status_id'}) {
     $kernel->yield('server_reply',304,'Conversation for ' . $tweet_id);
     $kernel->yield('user_msg','PRIVMSG',$status->{'user'}->{'screen_name'},$chan, "[" . $status->{'created_at'} . "] " . $status->{'text'});
@@ -1939,7 +1940,7 @@ sub twitter_conversation_related {
   if ($error) {
     $kernel->call($_[SESSION],'twitter_api_error','Unable to get related posts.',$error);   
   }
-  my $chan = '#twitter';
+  my $chan = $TIMELINE_CHANNEL;
   if ((@{$related}[0]) && (@{@{$related}[0]->{'results'}} > 0)) {
     $kernel->yield('server_reply',304,'Related posts for ' . $tweet_id);
     foreach my $result (@{@{$related}[0]->{'results'}}) {
@@ -1961,7 +1962,7 @@ sub twitter_conversation_r {
     $kernel->call($_[SESSION],'twitter_api_error','Unable to get post.',$error);   
     return;
   }
-  my $chan = '#twitter';
+  my $chan = $TIMELINE_CHANNEL;
   if ($status->{'text'}) {
     $kernel->yield('user_msg','PRIVMSG',$status->{'user'}->{'screen_name'},$chan, "[" . $status->{'created_at'} . "] " . $status->{'text'});
   }
