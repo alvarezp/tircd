@@ -1,6 +1,6 @@
 Welcome to tircd! Still beta, mind the bumps.
 
-/join #twitter to get started!  
+/join #~timeline to get started!  
 
 /stats to set configurable options.
 

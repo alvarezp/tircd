@@ -24,7 +24,7 @@ use Digest::SHA1  qw(sha1_base64);
 
 
 my $VERSION = '.21.1';
-my $TIMELINE_CHANNEL = '#twitter';
+my $TIMELINE_CHANNEL = '#~timeline';
 
 # consumer key/secret in the executable instead of config because it should not be edited by user
 my $tw_oauth_con_key = "4AQca4GFiWWaifUknq35Q";

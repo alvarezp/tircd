@@ -77,7 +77,7 @@ Tircd will make an OAuth challenege to Twitter, and Twitter will return a link t
 
 Make sure you are either logged into twitter as the account you plan to use, or not logged in. Click the authorize link and log-in, then click "Allow". Twitter will then present you with a PIN number. B<To complete your connection to tircd>, type: B</stats pin <PIN NUMBER>>. On some clients you may have to type: B</quote stats pin <PIN NUMBER>>. 
 
-If the PIN is accepted by Twitter, the connection will be established. You may now join #twitter to begin. If the PIN is not accepted, another authorization link will be generated.
+If the PIN is accepted by Twitter, the connection will be established. You may now join #~timeline to begin. If the PIN is not accepted, another authorization link will be generated.
 
 =over
 
@@ -114,15 +114,15 @@ There is currently no way of regaining access to your account if you forget it. 
 
 =head2 After connecting
 
-Once connected C</JOIN #twitter> to get started.  The channel #twitter is where you will perform most opertions
+Once connected C</JOIN #~timeline> to get started.  The channel #~timeline is where you will perform most opertions
 
 =over
 
 =item Updating your status
 
-To update your status on twitter, simply send a message starting with "!t " to the #twitter channel.  The server will keep your most recent update in the topic at all times.
+To update your status on twitter, simply send a message starting with "!t " to the #~timeline channel.  The server will keep your most recent update in the topic at all times.
 
-If you want to have all message you send to #twitter posted as tweets, you can set the config option "auto_post" to 1. Either in tircd.conf or via the /stats command. Messages beginning with an exclamation point ("!") will still be processed as commands, not tweeted.
+If you want to have all message you send to #~timeline posted as tweets, you can set the config option "auto_post" to 1. Either in tircd.conf or via the /stats command. Messages beginning with an exclamation point ("!") will still be processed as commands, not tweeted.
 
 =item Getting your friend's status
 
@@ -144,7 +144,7 @@ B<!retweet a7f>
 
 =item Listing the users you follow
 
-Each user you follow will be in the #twitter channel.  If you follow a new user outside of tircd, that user will join the channel the first time they update their status.  People who follow you back are given voice (+v) to indicate that fact.
+Each user you follow will be in the #~timeline channel.  If you follow a new user outside of tircd, that user will join the channel the first time they update their status.  People who follow you back are given voice (+v) to indicate that fact.
 
 =item Direct Messages
 
@@ -160,20 +160,20 @@ Issuing a /WHOIS on your own user name will also provide the number of API calls
 
 =item Following new users
 
-To begin following a new user, simply /INVITE them to #twitter.  The user will join the channel if the request to follow was successful.  If you attempt to invite a user who protects their updates, you will receive a notice that you have requested to follow them.  The user will join the channel if they accept your request and update their status.
+To begin following a new user, simply /INVITE them to #~timeline.  The user will join the channel if the request to follow was successful.  If you attempt to invite a user who protects their updates, you will receive a notice that you have requested to follow them.  The user will join the channel if they accept your request and update their status.
 
 B<!invite> is the analagous offerbot command.
 
 =item Unfollowing / removing users
 
-To stop following a user, /KICK them from #twitter.
+To stop following a user, /KICK them from #~timeline.
 
 B<!kick> is the analagous offerbot command.
 
 =item Blocking users 
 
 To block a user /BAN them.  
-There is currently no way to get a list of users you've currently blocked via the API, so listing the bans in #twitter will only return users you've blocked in the current session.
+There is currently no way to get a list of users you've currently blocked via the API, so listing the bans in #~timeline will only return users you've blocked in the current session.
 
 =item Unblocking users
 
@@ -181,7 +181,7 @@ To unblock a user /UNBAN them.
 
 =item Multiple Channels / Groups
 
-If you want to create a channel with just a subset of the people you follow, you can C<< /JOIN <any channel> >> and then /INVITE them to the channel.  tircd will send a user's updates to #twitter and any other channels you have invited a user to.
+If you want to create a channel with just a subset of the people you follow, you can C<< /JOIN <any channel> >> and then /INVITE them to the channel.  tircd will send a user's updates to #~timeline and any other channels you have invited a user to.
 
 =item Search
 
@@ -197,7 +197,7 @@ These options are saved in a file with the name F<Username.config> (where Userna
 
 Tircd supports offerbot style control. All functions available through the offerbot are available as they're metaphorically appropriate IRC functions. Therefore, retweeting, replying to a specific tweet, and saving the user configuration are B<only> available through the offerbot.
 
-B<![update|up|refresh]> - Updates the #twitter stream immediately.
+B<![update|up|refresh]> - Updates the #~timeline stream immediately.
 
 B<![tweet|t] <text of tweet>> - Posts the given text as an update to your feed.
 
