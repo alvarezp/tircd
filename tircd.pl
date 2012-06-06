@@ -148,6 +148,7 @@ POE::Component::Server::TCP->new(
     twitter_timeline => \&twitter_timeline,
     twitter_direct_messages => \&twitter_direct_messages,
     twitter_search => \&twitter_search,
+    twitter_getfollowers => \&twitter_getfollowers,
     
     login => \&tircd_login,
     getfriend => \&tircd_getfriend,
@@ -1486,30 +1487,11 @@ sub channel_twitter {
     return;
   } 
 
-  #get list of followers
-  my @followers = ();
-  $cursor = -1;
-  while (my $f = eval { $heap->{'twitter'}->followers({'cursor' => $cursor}) }) {
-    $cursor = $f->{'next_cursor'};
-    foreach my $user ($f->{'users'}) {
-      foreach my $u (@{$user}) {
-        push(@followers, $u);
-      }
-    }
-    last if $cursor == 0;
-  }
-  $error = $@;
+  $kernel->call($_[SESSION],'twitter_getfollowers');
 
-  #alert this error, but don't end 'em
-  if ($cursor == -1 && ref $error && $error->isa("Net::Twitter::Lite::Error") && $error->code() >= 400) {
-    $kernel->call($_[SESSION],'twitter_api_error','Unable to get followers list.',$error);
-  } 
-
-  #cache our friends and followers
+  #cache our friends
   $heap->{'friends'} = \@friends;
-  $heap->{'followers'} = \@followers;
   $kernel->post('logger','log','Received friends list from Twitter, caching '.@{$heap->{'friends'}}.' friends.',$heap->{'username'});
-  $kernel->post('logger','log','Received followers list from Twitter, caching '.@{$heap->{'followers'}}.' followers.',$heap->{'username'});
 
   #spoof the channel join
   $kernel->yield('user_msg','JOIN',$heap->{'username'},$chan);	
@@ -1575,6 +1557,32 @@ sub tircd_ticker_assign_slot {
 }
 
 ########### TWITTER EVENT/ALARM FUNCTIONS
+
+sub twitter_getfollowers {
+	my ($kernel, $heap) = @_[KERNEL, HEAP];
+
+	my @followers = ();
+	my $cursor = -1;
+	while (my $f = eval { $heap->{'twitter'}->followers({'cursor' => $cursor}) }) {
+		$cursor = $f->{'next_cursor'};
+		foreach my $user ($f->{'users'}) {
+			foreach my $u (@{$user}) {
+				push(@followers, $u);
+			}
+		}
+		last if $cursor == 0;
+	}
+	my $error = $@;
+
+	#alert this error, but don't end 'em
+	if ($cursor == -1 && ref $error && $error->isa("Net::Twitter::Lite::Error") && $error->code() >= 400) {
+		$kernel->call($_[SESSION],'twitter_api_error','Unable to get followers list.',$error);
+	}
+
+	#cache our followers
+	$heap->{'followers'} = \@followers;
+	$kernel->post('logger','log','Received followers list from Twitter, caching '.@{$heap->{'followers'}}.' followers.',$heap->{'username'});
+}
 
 sub twitter_timeline {
   my ($kernel, $heap, $silent) = @_[KERNEL, HEAP, ARG0];
