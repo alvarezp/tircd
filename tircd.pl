@@ -135,6 +135,8 @@ POE::Component::Server::TCP->new(
     user_msg	 => \&irc_user_msg,
     handle_command => \&irc_twitterbot_command,
 
+    tircd_ticker_assign_slot => \&tircd_ticker_assign_slot,
+
     twitter_post_tweet => \&twitter_post_tweet,
     twitter_retweet_tweet => \&twitter_retweet_tweet,
     twitter_reply_to_tweet => \&twitter_reply_to_tweet,
@@ -1560,6 +1562,18 @@ sub channel_twitter {
   return 1;
 }
 
+########### TICKER FUNCTIONS
+sub tircd_ticker_assign_slot {
+	my ($kernel, $heap, $item) = @_[KERNEL, HEAP, ARG0];
+
+	# assign a ticker slot for later referencing with !reply or !retweet
+	my $ticker_slot = get_timeline_ticker_slot();
+	$heap->{'timeline_ticker'}->{$ticker_slot} = $item->{'id'};
+	$item->{'tircd_ticker_slot'} = $ticker_slot;
+	$item->{'tircd_ticker_slot_display'} = ($heap->{'config'}->{'display_ticker_slots'}) ? '[' . $ticker_slot . '] ' : '';
+	$kernel->post('logger','log','Slot ' . $ticker_slot . ' now contains tweet with id: ' . $item->{'id'},$heap->{'username'}) if ($config{'debug'} >= 2);
+}
+
 ########### TWITTER EVENT/ALARM FUNCTIONS
 
 sub twitter_timeline {
@@ -1671,12 +1685,7 @@ sub twitter_timeline {
        }
     }
 
-    # assign a ticker slot for later referencing with !reply or !retweet
-    my $ticker_slot = get_timeline_ticker_slot();
-    $heap->{'timeline_ticker'}->{$ticker_slot} = $item->{'id'};
-    $item->{'tircd_ticker_slot'} = $ticker_slot;
-    $item->{'tircd_ticker_slot_display'} = ($heap->{'config'}->{'display_ticker_slots'}) ? '[' . $ticker_slot . '] ' : '';
-    $kernel->post('logger','log','Slot ' . $ticker_slot . ' now contains tweet with id: ' . $item->{'id'},$heap->{'username'}) if ($config{'debug'} >= 2);
+    $kernel->call($_[SESSION],'tircd_ticker_assign_slot', $item);
     
     if (my $friend = $kernel->call($_[SESSION],'getfriend',$item->{'user'}->{'screen_name'})) { #if we've seen 'em before just update our cache
       $kernel->call($_[SESSION],'updatefriend',$tmp);
