@@ -498,6 +498,10 @@ sub tircd_setup_authenticated_user {
 
 	#show 'em the motd
 	$kernel->yield('MOTD');  
+
+	#load list of followers and friends
+	$kernel->call($_[SESSION],'twitter_getfollowers');
+	$kernel->call($_[SESSION],'twitter_getfriends');
 }
 
 sub tircd_oauth_no_pin_received {
@@ -1466,9 +1470,6 @@ sub channel_twitter {
   #add our channel to the list  
   $heap->{'channels'}->{$chan} = {};
   $heap->{'channels'}->{$chan}->{'joined'} = 1;
-
-  $kernel->call($_[SESSION],'twitter_getfollowers');
-  $kernel->call($_[SESSION],'twitter_getfriends');
 
   #spoof the channel join
   $kernel->yield('user_msg','JOIN',$heap->{'username'},$chan);	
