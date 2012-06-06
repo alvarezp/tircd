@@ -149,6 +149,7 @@ POE::Component::Server::TCP->new(
     twitter_direct_messages => \&twitter_direct_messages,
     twitter_search => \&twitter_search,
     twitter_getfollowers => \&twitter_getfollowers,
+    twitter_getfriends => \&twitter_getfriends,
     
     login => \&tircd_login,
     getfriend => \&tircd_getfriend,
@@ -1466,32 +1467,8 @@ sub channel_twitter {
   $heap->{'channels'}->{$chan} = {};
   $heap->{'channels'}->{$chan}->{'joined'} = 1;
 
-  #get list of friends
-  my @friends = ();
-  my $cursor = -1;
-  my $error;
-  while (my $f = eval { $heap->{'twitter'}->friends({'cursor' => $cursor})}) {
-    $cursor = $f->{'next_cursor'};
-    foreach my $user ($f->{'users'}) {
-      foreach my $u (@{$user}) {
-        push(@friends, $u);
-      }
-    }
-    last if $cursor == 0;
-  }
-  my $error = $@;
-
-  #if we have no data, there was an error, or the user is a loser with no friends, eject 'em
-  if ($cursor == -1 && ref $error && $error->isa("Net::Twitter::Lite::Error") && $error->code() >= 400) {
-    $kernel->call($_[SESSION],'twitter_api_error','Unable to get friends list.',$error);
-    return;
-  } 
-
   $kernel->call($_[SESSION],'twitter_getfollowers');
-
-  #cache our friends
-  $heap->{'friends'} = \@friends;
-  $kernel->post('logger','log','Received friends list from Twitter, caching '.@{$heap->{'friends'}}.' friends.',$heap->{'username'});
+  $kernel->call($_[SESSION],'twitter_getfriends');
 
   #spoof the channel join
   $kernel->yield('user_msg','JOIN',$heap->{'username'},$chan);	
@@ -1582,6 +1559,35 @@ sub twitter_getfollowers {
 	#cache our followers
 	$heap->{'followers'} = \@followers;
 	$kernel->post('logger','log','Received followers list from Twitter, caching '.@{$heap->{'followers'}}.' followers.',$heap->{'username'});
+}
+
+sub twitter_getfriends {
+	my ($kernel, $heap) = @_[KERNEL, HEAP];
+
+	#get list of friends
+	my @friends = ();
+	my $cursor = -1;
+	my $error;
+	while (my $f = eval { $heap->{'twitter'}->friends({'cursor' => $cursor})}) {
+		$cursor = $f->{'next_cursor'};
+		foreach my $user ($f->{'users'}) {
+			foreach my $u (@{$user}) {
+				push(@friends, $u);
+			}
+		}
+		last if $cursor == 0;
+	}
+	my $error = $@;
+
+	#if we have no data, there was an error, or the user is a loser with no friends, eject 'em
+	if ($cursor == -1 && ref $error && $error->isa("Net::Twitter::Lite::Error") && $error->code() >= 400) {
+		$kernel->call($_[SESSION],'twitter_api_error','Unable to get friends list.',$error);
+		return;
+	}
+
+	#cache our friends
+	$heap->{'friends'} = \@friends;
+	$kernel->post('logger','log','Received friends list from Twitter, caching '.@{$heap->{'friends'}}.' friends.',$heap->{'username'});
 }
 
 sub twitter_timeline {
