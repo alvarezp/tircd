@@ -1754,7 +1754,12 @@ sub twitter_timeline {
           }
           # - Send the message to the other channels the user is in if the user is not "me"
           if ($chan ne $TIMELINE_CHANNEL && exists $heap->{'channels'}->{$chan}->{'names'}->{$item->{'user'}->{'screen_name'}} && $item->{'user'}->{'screen_name'} ne $heap->{'username'}) {
-            $kernel->yield('user_msg','PRIVMSG',$item->{'user'}->{'screen_name'},$chan,$item->{'tircd_ticker_slot_display'} . $item->{'text'});
+            if(defined($item->{'retweeted_status'})) {
+              $kernel->yield('user_msg','PRIVMSG',$item->{'retweeted_status'}->{'user'}->{'screen_name'},$chan,$item->{'tircd_ticker_slot_display'} . $item->{'retweeted_status'}->{'text'} . ' (RT by ' . $item->{'user'}->{'screen_name'} . ')');
+            }
+            else {
+              $kernel->yield('user_msg','PRIVMSG',$item->{'user'}->{'screen_name'},$chan,$item->{'tircd_ticker_slot_display'} . $item->{'text'});
+            }
           }
           # - And set topic on the timeline channel if user is me and the topic is not already set 
           if ($chan eq $TIMELINE_CHANNEL && $item->{'user'}->{'screen_name'} eq $heap->{'username'} && $item->{'text'} ne $heap->{'channels'}->{$chan}->{'topic'}) {
@@ -1894,7 +1899,12 @@ sub twitter_search {
     #   /Olatho
     if ($result->{'from_user'} ne $heap->{'username'}) {
       $kernel->call($_[SESSION],'tircd_ticker_assign_slot', $result, $config{'debug'});
-      $kernel->yield('user_msg','PRIVMSG',$result->{'from_user'},$chan,$result->{'tircd_ticker_slot_display'} . $result->{'text'});
+      if(defined($result->{'retweeted_status'})) {
+        $kernel->yield('user_msg','PRIVMSG',$result->{'retweeted_status'}->{'user'}->{'screen_name'},$chan,$result->{'tircd_ticker_slot_display'} . $result->{'retweeted_status'}->{'text'} . ' (RT by ' . $result->{'from_user'} . ')');
+      }
+      else {
+        $kernel->yield('user_msg','PRIVMSG',$result->{'from_user'},$chan,$result->{'tircd_ticker_slot_display'} . $result->{'text'});
+      }
     }
   }
 
