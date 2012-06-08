@@ -766,11 +766,10 @@ sub irc_join {
   my @chans = split(/\,/,$data->{'params'}[0]);
   foreach my $chan (@chans) {
     $chan =~ s/\s//g;
-    #see if we've registered an event handler for a 'special channel' (currently only the timeline channel)
-    if ($kernel->call($_[SESSION],$chan,$chan)) {
-      next;
-    }
-    
+
+    my $chan_prefix = $chan;
+    $chan_prefix =~ s/^(..).*/\1/g;
+
     #we might have something saved already, if not prep a new channel
     if (!exists $heap->{'channels'}->{$chan} ) {
       $heap->{'channels'}->{$chan} = {};
@@ -779,6 +778,20 @@ sub irc_join {
     
     $heap->{'channels'}->{$chan}->{'joined'} = 1;
     
+    if ($chan_prefix eq "#~") {
+      #otherwise, prep a blank channel
+      $kernel->yield('user_msg','JOIN',$heap->{'username'},$chan);
+      $kernel->yield('server_reply',332,$chan,"$chan");
+      $kernel->yield('server_reply',333,$chan,'tircd!tircd@tircd',time());
+
+      #see if we've registered an event handler for a 'special channel' (currently only the timeline channel)
+      if ($kernel->call($_[SESSION],$chan,$chan)) {
+        $kernel->call($_[SESSION],'irc_send_names',$chan);
+      }
+
+      next;
+    }
+
     #otherwise, prep a blank channel  
     $kernel->yield('user_msg','JOIN',$heap->{'username'},$chan);	
     $kernel->yield('server_reply',332,$chan,"$chan");
@@ -1476,15 +1489,6 @@ sub irc_quit {
 sub channel_twitter {
   my ($kernel,$heap,$chan) = @_[KERNEL, HEAP, ARG0];
 
-  #add our channel to the list  
-  $heap->{'channels'}->{$chan} = {};
-  $heap->{'channels'}->{$chan}->{'joined'} = 1;
-
-  #spoof the channel join
-  $kernel->yield('user_msg','JOIN',$heap->{'username'},$chan);	
-  $kernel->yield('server_reply',332,$chan,"$heap->{'username'}'s twitter");
-  $kernel->yield('server_reply',333,$chan,'tircd!tircd@tircd',time());
-  
   #the the list of our users for /NAMES
   my $lastmsg = '';
   foreach my $user (@{$heap->{'friends'}}) {
@@ -1513,14 +1517,6 @@ sub channel_twitter {
       push(@{$heap->{'friends'}},$tmp);
     }
   }  
-
-  #send the /NAMES info
-  my $all_users = '';
-  foreach my $name (keys %{$heap->{'channels'}->{$chan}->{'names'}}) {
-    $all_users .= $heap->{'channels'}->{$chan}->{'names'}->{$name} . $name .' ';
-  }
-  $kernel->yield('server_reply',353,'=',$chan,$all_users);
-  $kernel->yield('server_reply',366,$chan,'End of /NAMES list');
 
   $kernel->yield('user_msg','TOPIC',$heap->{'username'},$chan,"$heap->{'username'}'s last update: $lastmsg");
 
