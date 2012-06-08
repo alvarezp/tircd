@@ -134,6 +134,7 @@ POE::Component::Server::TCP->new(
     server_reply => \&irc_reply,
     user_msg	 => \&irc_user_msg,
     handle_command => \&irc_twitterbot_command,
+    irc_send_names => \&irc_send_names,
 
     tircd_ticker_assign_slot => \&tircd_ticker_assign_slot,
 
@@ -741,6 +742,18 @@ sub irc_motd {
   $kernel->yield('server_reply',376,'End of /MOTD command.');
 }
 
+sub irc_send_names {
+	my ($kernel, $heap, $chan) = @_[KERNEL, HEAP, ARG0];
+
+	#send the /NAMES info
+	my $all_users = '';
+	foreach my $name (keys %{$heap->{'channels'}->{$chan}->{'names'}}) {
+		$all_users .= $heap->{'channels'}->{$chan}->{'names'}->{$name} . $name .' ';
+	}
+	$kernel->yield('server_reply',353,'=',$chan,$all_users);
+	$kernel->yield('server_reply',366,$chan,'End of /NAMES list');
+}
+
 sub irc_join {
   my ($kernel, $heap, $data) = @_[KERNEL, HEAP, ARG0];
 
@@ -771,14 +784,7 @@ sub irc_join {
     $kernel->yield('server_reply',332,$chan,"$chan");
     $kernel->yield('server_reply',333,$chan,'tircd!tircd@tircd',time());
 
-
-    #send the /NAMES info
-    my $all_users = '';
-    foreach my $name (keys %{$heap->{'channels'}->{$chan}->{'names'}}) {
-      $all_users .= $heap->{'channels'}->{$chan}->{'names'}->{$name} . $name .' ';
-    }
-    $kernel->yield('server_reply',353,'=',$chan,$all_users);
-    $kernel->yield('server_reply',366,$chan,'End of /NAMES list');
+    $kernel->call($_[SESSION],'irc_send_names',$chan);
     
     #restart the searching
     if ($heap->{'channels'}->{$chan}->{'topic'}) {
