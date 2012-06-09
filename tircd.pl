@@ -234,11 +234,11 @@ sub logger_log {
 sub twitter_api_error {
   my ($kernel,$heap, $msg, $error) = @_[KERNEL, HEAP, ARG0, ARG1];
   
-  if ($config{'debug'}) {
-    $kernel->post('logger','log',$error->message().' '.$error->code().' '.$error,'debug/twitter_api_error');
-  }
-
   if ($error) {
+    if ($config{'debug'}) {
+      $kernel->post('logger','log',$error->message().' '.$error->code().' '.$error,'debug/twitter_api_error');
+    }
+
     $kernel->post('logger','log',$msg.' ('.$error->code() .' from Twitter API).',$heap->{'username'});  
 
     if ($error->code() == 400) {
