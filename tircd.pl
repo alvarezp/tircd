@@ -25,6 +25,7 @@ use Digest::SHA1  qw(sha1_base64);
 
 my $VERSION = '.21.1';
 my $TIMELINE_CHANNEL = '#~timeline';
+my $OWNPROFILE_CHANNEL = '#~profile';
 
 # consumer key/secret in the executable instead of config because it should not be edited by user
 my $tw_oauth_con_key = "4AQca4GFiWWaifUknq35Q";
@@ -130,6 +131,7 @@ POE::Component::Server::TCP->new(
     TOPIC => \&irc_topic,
 
     $TIMELINE_CHANNEL => \&channel_twitter,
+    $OWNPROFILE_CHANNEL => \&channel_ownprofile,
     
     server_reply => \&irc_reply,
     user_msg	 => \&irc_user_msg,
@@ -151,6 +153,7 @@ POE::Component::Server::TCP->new(
     twitter_api_error => \&twitter_api_error,    
     twitter_timeline => \&twitter_timeline,
     twitter_direct_messages => \&twitter_direct_messages,
+    twitter_ownprofile => \&twitter_ownprofile,
     twitter_search => \&twitter_search,
     twitter_getfollowers => \&twitter_getfollowers,
     twitter_getfriends => \&twitter_getfriends,
@@ -1539,6 +1542,46 @@ sub channel_twitter {
   return 1;
 }
 
+sub channel_ownprofile {
+	my ($kernel,$heap,$chan) = @_[KERNEL, HEAP, ARG0];
+
+	#the the list of our users for /NAMES
+	my $lastmsg = '';
+	foreach my $user (@{$heap->{'followers'}}) {
+		my $ov ='';
+		if ($user->{'screen_name'} eq $heap->{'username'}) {
+			$lastmsg = $user->{'status'}->{'text'};
+			$ov = '@';
+		} elsif ($kernel->call($_[SESSION],'getfriend',$user->{'screen_name'})) {
+			$ov='+';
+		}
+		#keep a copy of who is in this channel
+		$heap->{'channels'}->{$chan}->{'names'}->{$user->{'screen_name'}} = $ov;
+	}
+
+	# Add the tircdbot
+	$heap->{'channels'}->{$chan}->{'names'}->{'tircdbot'} = '%';
+
+	if (!$lastmsg) { #if we aren't already in the list, add us to the list for NAMES - AND go grab one tweet to put us in the array
+		$heap->{'channels'}->{$chan}->{'names'}->{$heap->{'username'}} = '@';
+		my $data = eval { $heap->{'twitter'}->user_timeline({count => 1}) };
+		if ($data && @$data > 0) {
+			$kernel->post('logger','log','Received user timeline from Twitter.',$heap->{'username'});
+			my $tmp = $$data[0]->{'user'};
+			$tmp->{'status'} = $$data[0];
+			$lastmsg = $tmp->{'status'}->{'text'};
+			push(@{$heap->{'followers'}},$tmp);
+		}
+	}
+
+	$kernel->yield('user_msg','TOPIC',$heap->{'username'},$chan,"$heap->{'username'}'s last update: $lastmsg");
+
+	#start our twitter even loop, grab the timeline, replies and direct messages
+	$kernel->yield('twitter_ownprofile',$heap->{'config'}->{'join_silent'});
+
+	return 1;
+}
+
 ########### TICKER FUNCTIONS
 sub tircd_ticker_assign_slot {
 	my ($kernel, $heap, $item) = @_[KERNEL, HEAP, ARG0];
@@ -1801,8 +1844,8 @@ sub twitter_timeline {
               $kernel->yield('user_msg','PRIVMSG',$item->{'user'}->{'screen_name'},$chan,$item->{'tircd_ticker_slot_display'} . $item->{'text'});
             }
           }
-          # - Send the message to the other channels the user is in if the user is not "me"
-          if ($chan ne $TIMELINE_CHANNEL && exists $heap->{'channels'}->{$chan}->{'names'}->{$item->{'user'}->{'screen_name'}} && $item->{'user'}->{'screen_name'} ne $heap->{'username'}) {
+          # - Send the message to the other non-special channels the user is in if the user is not "me"
+          if ($chan ne $TIMELINE_CHANNEL && $chan ne $OWNPROFILE_CHANNEL && exists $heap->{'channels'}->{$chan}->{'names'}->{$item->{'user'}->{'screen_name'}} && $item->{'user'}->{'screen_name'} ne $heap->{'username'}) {
             if(defined($item->{'retweeted_status'})) {
               $kernel->yield('user_msg','PRIVMSG',$item->{'retweeted_status'}->{'user'}->{'screen_name'},$chan,$item->{'tircd_ticker_slot_display'} . $item->{'retweeted_status'}->{'text'} . ' (\cvRT\cv by ' . $item->{'user'}->{'screen_name'} . ')');
             }
@@ -1831,6 +1874,99 @@ sub twitter_timeline {
   if ($heap->{'config'}->{'update_timeline'} > 0) {
     $kernel->delay('twitter_timeline',$heap->{'config'}->{'update_timeline'});
   }
+}
+
+sub twitter_ownprofile {
+	my ($kernel, $heap, $silent) = @_[KERNEL, HEAP, ARG0];
+
+	$kernel->post('logger','log',"Welcome to #~profile") if ($config{'debug'} >= 2);
+
+	#get updated messages
+	my ($ownprofile, $error);
+
+	my %ownprofile_request = (
+		count => $heap->{'config'}->{'timeline_count'},
+		include_entities => 1,
+		include_rts => 1,
+		screen_name => $heap->{'username'},
+	);
+
+	if ($heap->{'ownprofile_since_id'}) {
+		$ownprofile_request{'since_id'} = $heap->{'ownprofile_since_id'};
+	}
+
+	$ownprofile = $heap->{'twitter'}->user_timeline(\%ownprofile_request);
+	$error = $@;
+
+	#sometimes the twitter API returns undef, so we gotta check here
+	if (!$ownprofile || @$ownprofile == 0 || @{$ownprofile}[0]->{'id'} < $heap->{'ownprofile_since_id'} ) {
+		$ownprofile = [];
+		if (ref $error && $error->isa("Net::Twitter::Lite::Error") && $error->code() >= 400) {
+			$kernel->call($_[SESSION],'twitter_api_error','Unable to update ownprofile.',$error);
+		}
+	} else {
+		#if we got new data save our position
+		$heap->{'ownprofile_since_id'} = @{$ownprofile}[0]->{'id'};
+		$kernel->post('logger','log','Received '.@$ownprofile.' ownprofile updates from Twitter.',$heap->{'username'});
+	}
+
+	#because this was copied from twitter_timeline...
+	my @tmpdata = (@{$ownprofile});
+	my %tmphash = ();
+	foreach my $item (@tmpdata) {
+		$tmphash{$item->{'id'}} = $item;
+	}
+
+	my $item;
+	my $chan;
+	$chan = $OWNPROFILE_CHANNEL;
+	#loop through each message
+	foreach $item (sort {$a->{'id'} <=> $b->{'id'}} values %tmphash) {
+		$kernel->post('logger','log',"Cycling for item $item->{'tweet_id'})") if ($config{'debug'} >= 2);
+		my $tmp = $item->{'user'};
+		my $is_following = ();
+		$tmp->{'status'} = $item;
+
+		# Replace URLS and expand Real Names
+		# Ignore it for my own messages
+		if (lc($item->{'user'}->{'screen_name'}) ne lc($heap->{'username'})) {
+			$kernel->call($_[SESSION],'tircd_tweet_replace_urls');
+			$kernel->call($_[SESSION],'tircd_tweet_replace_names');
+		}
+
+		$kernel->call($_[SESSION],'tircd_ticker_assign_slot', $item, $config{'debug'});
+
+		# don't display if not in silent mode
+		# Olatho - Don't understand what the original code tried to do, but my changes tries to do the right thing
+		# This will lead to seeing messages twice if you are tweeting actively, as messages are parsed both when you tweet, and when tircd receives the updates
+		# But I prefer that instead of missing messages I add from other clients
+		# This can be fixed by using a global buffer/cache to filter out the messages, not just the latest topic
+		if (!$silent) {
+			# - Send the message to the ownprofile channel if it is different from my latest update (IE different from current topic)
+			if ($chan eq $OWNPROFILE_CHANNEL && exists $heap->{'channels'}->{$chan}->{'names'}->{$item->{'user'}->{'screen_name'}} && $item->{'text'} ne $heap->{'channels'}->{$chan}->{'topic'}) {
+				# TODO clean this logic block
+				# TODO change filtering for realname / urls to happen here, along with general filtering
+				# Fixing issue #81
+				if(defined($item->{'retweeted_status'})) {
+					$kernel->yield('user_msg','PRIVMSG',$item->{'retweeted_status'}->{'user'}->{'screen_name'},$chan,$item->{'tircd_ticker_slot_display'} . $item->{'retweeted_status'}->{'text'} . " (\cvRT\cv)");
+				}
+				else {
+					$kernel->yield('user_msg','PRIVMSG',$item->{'user'}->{'screen_name'},$chan,$item->{'tircd_ticker_slot_display'} . $item->{'text'});
+				}
+			}
+		}
+	}
+
+	# - And set topic on the ownprofile channel if user is me and the topic is not already set
+	if ($chan eq $OWNPROFILE_CHANNEL && $item->{'user'}->{'screen_name'} eq $heap->{'username'} && $item->{'text'} ne $heap->{'channels'}->{$chan}->{'topic'}) {
+		$kernel->yield('user_msg','TOPIC',$heap->{'username'},$chan,"$heap->{'username'}'s last update: ".$item->{'text'});
+		$heap->{'channels'}->{$chan}->{'topic'} = $item->{'text'};
+	}
+
+	# We'll use update_timeline config for ownprofile too.
+	if ($heap->{'config'}->{'update_timeline'} > 0) {
+		$kernel->delay('twitter_ownprofile',$heap->{'config'}->{'update_timeline'});
+	}
 }
 
 #same as above, but for direct messages, show 'em as PRIVMSGs from the user

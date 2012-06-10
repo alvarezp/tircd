@@ -118,6 +118,10 @@ Once connected C</JOIN #~timeline> to get started.  The channel #~timeline is wh
 
 =over
 
+=item Checking your profile
+
+There is a special channel named #~profile that matches your Twitter profile page. Messages in it correspond to tweets (replies or not) and retweets by you. Your followers will join the channel, but remember that if your tweets are not "protected", your profile is effectively public.
+
 =item Updating your status
 
 To update your status on twitter, simply send a message starting with "!t " to the #~timeline channel.  The server will keep your most recent update in the topic at all times.
