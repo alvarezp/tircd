@@ -139,6 +139,7 @@ POE::Component::Server::TCP->new(
     tircd_ticker_assign_slot => \&tircd_ticker_assign_slot,
 
     tircd_tweet_replace_urls => \&tircd_tweet_replace_urls,
+    tircd_tweet_replace_names => \&tircd_tweet_replace_names,
 
     twitter_post_tweet => \&twitter_post_tweet,
     twitter_retweet_tweet => \&twitter_retweet_tweet,
@@ -1580,6 +1581,47 @@ sub tircd_tweet_replace_urls {
 	}
 }
 
+sub tircd_tweet_replace_names {
+	my ($kernel, $heap, $item) = @_[KERNEL, HEAP, ARG0];
+
+	# Validations
+	if (!($heap->{'config'}->{'show_realname'} == 1)) {
+		return;
+	}
+
+	if (!(defined($item->{'entities'}->{'user_mentions'}))) {
+		return;
+	}
+
+	# This is quite ugly, but it's the best I could do...
+	foreach my $user (@{$item->{'entities'}->{'user_mentions'}}) {
+		$kernel->post('logger','log','Showing realname ' . $user->{'name'} . ' for ' . $user->{'screen_name'},$heap->{'username'}) if ($config{'debug'} >= 2);
+		my $search  = "@" . $user->{'screen_name'};
+		my $replace = "@" . $user->{'screen_name'} . " (" . $user->{'name'} . ")";
+
+		$item->{'text'} =~ s/$search/$replace/g;
+
+		# Also replace text in retweets.
+		if(!(defined($item->{'retweeted_status'}))) {
+			next;
+		}
+
+		$item->{'retweeted_status'}->{'text'} =~ s/$search/$replace/ig;
+
+		if (!($user->{'screen_name'} eq $item->{'retweeted_status'}->{'user'}->{'screen_name'})) {
+			next;
+		}
+
+		# If the text does not contain the username of the person being retweeted
+		# also add realname first in text
+		if ($item->{'retweeted_status'}->{'text'} !~ /$item->{'retweeted_status'}->{'user'}->{'screen_name'}/) {
+			my $search  = "^";
+			my $replace = "(" . $user->{'name'} . ") ";
+			$item->{'retweeted_status'}->{'text'} =~ s/$search/$replace/ig;
+		}
+	}
+}
+
 ########### TWITTER EVENT/ALARM FUNCTIONS
 
 sub twitter_getfollowers {
@@ -1701,36 +1743,10 @@ sub twitter_timeline {
     $tmp->{'status'} = $item;
 
     # Replace URLS and expand Real Names 
-    # This is quite ugly, but it's the best I could do...
     # Ignore it for my own messages 
-
     if (lc($item->{'user'}->{'screen_name'}) ne lc($heap->{'username'})) {
       $kernel->call($_[SESSION],'tircd_tweet_replace_urls', $item);
-       
-       if ($heap->{'config'}->{'show_realname'} == 1 && defined($item->{'entities'}->{'user_mentions'})) {
-          foreach my $user (@{$item->{'entities'}->{'user_mentions'}}) {
-             $kernel->post('logger','log','Showing realname ' . $user->{'name'} . ' for ' . $user->{'screen_name'},$heap->{'username'}) if ($config{'debug'} >= 2);
-             my $search  = "@" . $user->{'screen_name'};
-             my $replace = "@" . $user->{'screen_name'} . " (" . $user->{'name'} . ")";
-
-             $item->{'text'} =~ s/$search/$replace/g;
-
-             # Also replace text in retweets
-             if(defined($item->{'retweeted_status'})) {
-                $item->{'retweeted_status'}->{'text'} =~ s/$search/$replace/ig;
-
-                if ($user->{'screen_name'} eq $item->{'retweeted_status'}->{'user'}->{'screen_name'}) {
-                     # If the text does not contain the username of the person being retweeted
-                     # also add realname first in text
-                   if ($item->{'retweeted_status'}->{'text'} !~ /$item->{'retweeted_status'}->{'user'}->{'screen_name'}/) {
-                      my $search  = "^";
-                      my $replace = "(" . $user->{'name'} . ") ";
-                      $item->{'retweeted_status'}->{'text'} =~ s/$search/$replace/ig;
-                   }
-                }
-             }
-          }
-       }
+      $kernel->call($_[SESSION],'tircd_tweet_replace_names', $item);
     }
 
     $kernel->call($_[SESSION],'tircd_ticker_assign_slot', $item);
