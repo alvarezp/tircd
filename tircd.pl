@@ -138,6 +138,8 @@ POE::Component::Server::TCP->new(
 
     tircd_ticker_assign_slot => \&tircd_ticker_assign_slot,
 
+    tircd_tweet_replace_urls => \&tircd_tweet_replace_urls,
+
     twitter_post_tweet => \&twitter_post_tweet,
     twitter_retweet_tweet => \&twitter_retweet_tweet,
     twitter_reply_to_tweet => \&twitter_reply_to_tweet,
@@ -1548,6 +1550,36 @@ sub tircd_ticker_assign_slot {
 	$kernel->post('logger','log','Slot ' . $ticker_slot . ' now contains tweet with id: ' . $item->{'id'},$heap->{'username'}) if ($config{'debug'} >= 2);
 }
 
+########### PRIVMSG preparation from tweet
+sub tircd_tweet_replace_urls {
+	my ($kernel, $heap, $item) = @_[KERNEL, HEAP, ARG0];
+
+	# Validations
+	if (!($heap->{'config'}->{'expand_urls'} == 1)) {
+		return;
+	}
+
+	if (!(defined($item->{'entities'}->{'urls'}))) {
+		return;
+	}
+
+	# This is quite ugly, but it's the best I could do...
+	foreach my $url (@{$item->{'entities'}->{'urls'}}) {
+		if (!defined($url->{'expanded_url'})) {
+			next;
+		}
+
+		$kernel->post('logger','log','Replacing URL ' . $url->{'url'} . ' with ' . $url->{'expanded_url'},$heap->{'username'}) if ($config{'debug'} >= 2);
+		my $search = $url->{'url'};
+		my $replace = $url->{'expanded_url'};
+		$item->{'text'} =~ s/$search/$replace/g;
+		# Also replace text in retweets
+		if(defined($item->{'retweeted_status'})) {
+			$item->{'retweeted_status'}->{'text'} =~ s/$search/$replace/g;
+		}
+	}
+}
+
 ########### TWITTER EVENT/ALARM FUNCTIONS
 
 sub twitter_getfollowers {
@@ -1673,20 +1705,7 @@ sub twitter_timeline {
     # Ignore it for my own messages 
 
     if (lc($item->{'user'}->{'screen_name'}) ne lc($heap->{'username'})) {
-      if ($heap->{'config'}->{'expand_urls'}==1 && defined($item->{'entities'}->{'urls'})) {
-        foreach my $url (@{$item->{'entities'}->{'urls'}}) {
-          if (defined($url->{'expanded_url'})) {
-            $kernel->post('logger','log','Replacing URL ' . $url->{'url'} . ' with ' . $url->{'expanded_url'},$heap->{'username'}) if ($config{'debug'} >= 2);
-            my $search = $url->{'url'};
-            my $replace = $url->{'expanded_url'};
-            $item->{'text'} =~ s/$search/$replace/g;
-            # Also replace text in retweets
-            if(defined($item->{'retweeted_status'})) {
-               $item->{'retweeted_status'}->{'text'} =~ s/$search/$replace/g;
-            }
-          }
-       }
-    }
+      $kernel->call($_[SESSION],'tircd_tweet_replace_urls', $item);
        
        if ($heap->{'config'}->{'show_realname'} == 1 && defined($item->{'entities'}->{'user_mentions'})) {
           foreach my $user (@{$item->{'entities'}->{'user_mentions'}}) {
