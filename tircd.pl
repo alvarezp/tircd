@@ -657,6 +657,11 @@ sub irc_user_msg {
     $kernel->post('logger','log',$username.' '.$code.' '.join(' ',@params),'debug/irc_user_msg');
   }
 
+  if (!$heap->{'client'}) {
+    $kernel->post('logger','log','Nevermind: $heap->{\'client\'} was empty','debug/irc_user_msg');
+    return;
+  }
+
   $heap->{'client'}->put({
     command => $code,
     prefix => "$username!$username\@twitter",
@@ -678,6 +683,11 @@ sub irc_reply {
 
   if ($config{'debug'}) {
     $kernel->post('logger','log',':tircd '.$code.' '.join(' ',@params),'debug/irc_reply');
+  }
+
+  if (!$heap->{'client'}) {
+    $kernel->post('logger','log','Nevermind: $heap->{\'client\'} was empty','debug/irc_reply');
+    return;
   }
 
   $heap->{'client'}->put({
