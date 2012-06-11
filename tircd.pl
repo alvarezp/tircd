@@ -765,6 +765,10 @@ sub irc_send_names {
 	my $all_users = '';
 	foreach my $name (keys %{$heap->{'channels'}->{$chan}->{'names'}}) {
 		$all_users .= $heap->{'channels'}->{$chan}->{'names'}->{$name} . $name .' ';
+		if (length($all_users) > 400) {
+			$kernel->yield('server_reply',353,'=',$chan,$all_users);
+			$all_users = '';
+		}
 	}
 	$kernel->yield('server_reply',353,'=',$chan,$all_users);
 	$kernel->yield('server_reply',366,$chan,'End of /NAMES list');
