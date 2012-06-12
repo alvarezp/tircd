@@ -164,6 +164,8 @@ POE::Component::Server::TCP->new(
     updatefriend => \&tircd_updatefriend,
     getfollower => \&tircd_getfollower,
 
+    get_friend_data => \&get_friend_data,
+
     verify_ssl => \&tircd_verify_ssl,
     basicauth_login => \&twitter_basic_login,
     setup_authenticated_user => \&tircd_setup_authenticated_user,
@@ -924,26 +926,8 @@ sub irc_who {
 sub irc_whois {
   my ($kernel, $heap, $data) = @_[KERNEL, HEAP, ARG0];
   my $target = $data->{'params'}[0];
-  
-  my $friend = $kernel->call($_[SESSION],'getfriend',$target);
-  my $isfriend = 1;
-  my $error;
-  
-  if (!$friend) {#if we don't have their info already try to get it from twitter, and track it for the end of this function
-    $friend = eval { $heap->{'twitter'}->show_user($target) };
-    $error = $@;
-    $isfriend = 0;
-  }
 
-  if (ref $error && $error->isa("Net::Twitter::Lite::Error") && $error->code() == 404) {
-    $kernel->yield('server_reply',402,$target,'No such server');
-    return;
-  }
-
-  if (!$friend && ref $error && $error->isa("Net::Twitter::Lite::Error") && $error->code() >= 400) {
-    $kernel->call($_[SESSION],'twitter_api_error','Unable to get user information.',$error);
-    return;
-  }        
+  my $friend = $kernel->call($_[SESSION],'get_friend_data',$target);
 
   if ($friend) {
     $kernel->post('logger','log',"Received user information for $target from Twitter.",$heap->{'username'});
@@ -1558,6 +1542,33 @@ sub channel_twitter {
   $kernel->yield('twitter_timeline', $heap->{'config'}->{'join_silent'});
   
   return 1;
+}
+
+sub get_friend_data {
+	my ($kernel, $heap, $target) = @_[KERNEL, HEAP, ARG0];
+
+	my $friend = $kernel->call($_[SESSION],'getfriend',$target);
+	my $isfriend = 1;
+	my $error;
+
+	if (!$friend) {#if we don't have their info already try to get it from twitter, and track it for the end of this function
+		$friend = eval { $heap->{'twitter'}->show_user($target) };
+		$error = $@;
+		$isfriend = 0;
+	}
+
+	if (ref $error && $error->isa("Net::Twitter::Lite::Error") && $error->code() == 404) {
+		$kernel->yield('server_reply',402,$target,'No such server');
+		return;
+	}
+
+	if (!$friend && ref $error && $error->isa("Net::Twitter::Lite::Error") && $error->code() >= 400) {
+		$kernel->call($_[SESSION],'twitter_api_error','Unable to get user information.',$error);
+		return;
+	}
+
+	return $friend;
+
 }
 
 sub channel_ownprofile {
