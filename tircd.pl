@@ -1603,7 +1603,32 @@ sub channel_ownprofile {
 		}
 	}
 
-	$kernel->yield('user_msg','TOPIC',$heap->{'username'},$chan,"$heap->{'username'}'s last update: $lastmsg");
+	#Prepare the TOPIC.
+	my $friend = $kernel->call($_[SESSION],'get_friend_data',$heap->{'username'});
+
+	my $topic = "$friend->{'name'}";
+
+	if ($heap->{'username'} ne "" && (lc($friend->{'name'}) ne lc($heap->{'username'}))) {
+		$topic = "$heap->{'username'} is $friend->{'name'}";
+	}
+
+	if ($friend->{'location'} && $friend->{'location'} ne "") {
+		if ($friend->{'location'} =~ m/^ *from */i) {
+			$topic = $topic . " " . $friend->{'location'};
+		} else {
+			$topic = $topic . " from " . $friend->{'location'};
+		}
+	}
+
+	if ($friend->{'url'} && $friend->{'url'} ne "") {
+		$topic = $topic . " - $friend->{'url'}";
+	}
+
+	if ($friend->{'description'} && $friend->{'description'} ne "") {
+		$topic = $topic . " - $friend->{'description'}";
+	}
+
+	$kernel->yield('user_msg','TOPIC',$heap->{'username'},$chan,"$topic");
 
 	#start our twitter even loop, grab the timeline, replies and direct messages
 	$kernel->yield('twitter_ownprofile',$heap->{'config'}->{'join_silent'});
