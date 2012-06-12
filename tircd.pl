@@ -1195,6 +1195,20 @@ sub twitter_reply_to_tweet {
     my $errd;
     my $target = $TIMELINE_CHANNEL;
 
+    my $orig_item = $heap->{'map_tweet_id_to_item'}->{$tweet_id};
+
+    my $orig_author = $orig_item->{'user'}->{'screen_name'};
+    if ($msg !~ m/\@$orig_author( |$)/) {
+        $msg = "\@$orig_author $msg";
+    }
+
+    if ($orig_item->{'retweeted_status'}) {
+        my $retweet_author = $orig_item->{'user'}->{'screen_name'};
+        if ($msg !~ m/\@$retweet_author( |$)/) {
+            $msg = "\@$retweet_author $msg";
+        }
+    }
+
     my @msg_parts = $kernel->call($_[SESSION],'get_message_parts',$target, $msg);
 
     unless(@msg_parts) {
@@ -1593,6 +1607,7 @@ sub tircd_ticker_assign_slot {
 	# assign a ticker slot for later referencing with !reply or !retweet
 	my $ticker_slot = get_timeline_ticker_slot();
 	$heap->{'timeline_ticker'}->{$ticker_slot} = $item->{'id'};
+	$heap->{'map_tweet_id_to_item'}->{$item->{'id'}} = $item;
 	$item->{'tircd_ticker_slot'} = $ticker_slot;
 	$item->{'tircd_ticker_slot_display'} = ($heap->{'config'}->{'display_ticker_slots'}) ? '[' . $ticker_slot . '] ' : '';
 	$kernel->post('logger','log','Slot ' . $ticker_slot . ' now contains tweet with id: ' . $item->{'id'},$heap->{'username'}) if ($config{'debug'} >= 2);
