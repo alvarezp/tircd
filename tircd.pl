@@ -1895,7 +1895,7 @@ sub twitter_ownprofile {
 		$ownprofile_request{'since_id'} = $heap->{'ownprofile_since_id'};
 	}
 
-	$ownprofile = $heap->{'twitter'}->user_timeline(\%ownprofile_request);
+	$ownprofile = eval { $heap->{'twitter'}->user_timeline(\%ownprofile_request) };
 	$error = $@;
 
 	#sometimes the twitter API returns undef, so we gotta check here
