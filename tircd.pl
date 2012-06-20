@@ -1486,7 +1486,10 @@ sub irc_topic {
   my $chan = $data->{'params'}[0];
   my $topic = $data->{'params'}[1];
   
-  return if $chan eq $TIMELINE_CHANNEL;
+  if ($chan eq $TIMELINE_CHANNEL || $chan eq $OWNPROFILE_CHANNEL) {
+    $kernel->yield('server_reply',442,$chan,"That channel topic is unchangeable.");
+    return;
+  }
 
   if (!$heap->{'channels'}->{$chan}->{'joined'}) {
     $kernel->yield('server_reply',442,$chan,"You're not on that channel");
