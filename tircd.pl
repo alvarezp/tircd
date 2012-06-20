@@ -841,6 +841,10 @@ sub irc_part {
   } else {
     $kernel->yield('server_reply',442,$chan,"You're not on that channel");
   }
+
+  #Remove the corresponding "delay".
+  $kernel->delay($heap->{'channels'}->{$chan}->{'update_routine'});
+
 }
 
 sub irc_mode { #ignore all mode requests except ban which is a block (send back the appropriate message to keep the client happy)
@@ -1927,6 +1931,7 @@ sub twitter_timeline {
   }
 
   if ($heap->{'config'}->{'update_timeline'} > 0) {
+    $heap->{'channels'}->{$chan}->{'update_routine'} = "twitter_timeline";
     $kernel->delay('twitter_timeline',$heap->{'config'}->{'update_timeline'});
   }
 }
@@ -2020,6 +2025,7 @@ sub twitter_ownprofile {
 
 	# We'll use update_timeline config for ownprofile too.
 	if ($heap->{'config'}->{'update_timeline'} > 0) {
+		$heap->{'channels'}->{$chan}->{'update_routine'} = "twitter_ownprofile";
 		$kernel->delay('twitter_ownprofile',$heap->{'config'}->{'update_timeline'});
 	}
 }
