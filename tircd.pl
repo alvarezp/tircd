@@ -1900,19 +1900,19 @@ sub twitter_timeline {
             # TODO change filtering for realname / urls to happen here, along with general filtering
             # Fixing issue #81
             if(defined($item->{'retweeted_status'})) {
-              $kernel->yield('user_msg','PRIVMSG',$item->{'retweeted_status'}->{'user'}->{'screen_name'},$chan,$item->{'tircd_ticker_slot_display'} . $item->{'retweeted_status'}->{'text'} . " (\cvRT\cv by " . $item->{'user'}->{'screen_name'} . ')');
+              $kernel->yield('user_msg','PRIVMSG',$item->{'retweeted_status'}->{'user'}->{'screen_name'},$chan,$item->{'tircd_ticker_slot_display'} . "\N{U+21F5} " . $item->{'retweeted_status'}->{'text'} . " \cv(" . $item->{'user'}->{'screen_name'} . ")\cv");
             }
             else {
-              $kernel->yield('user_msg','PRIVMSG',$item->{'user'}->{'screen_name'},$chan,$item->{'tircd_ticker_slot_display'} . $item->{'text'});
+              $kernel->yield('user_msg','PRIVMSG',$item->{'user'}->{'screen_name'},$chan,$item->{'tircd_ticker_slot_display'} . "  " . $item->{'text'});
             }
           }
           # - Send the message to the other non-special channels the user is in if the user is not "me"
           if ($chan ne $TIMELINE_CHANNEL && $chan ne $OWNPROFILE_CHANNEL && exists $heap->{'channels'}->{$chan}->{'names'}->{$item->{'user'}->{'screen_name'}} && $item->{'user'}->{'screen_name'} ne $heap->{'username'}) {
             if(defined($item->{'retweeted_status'})) {
-              $kernel->yield('user_msg','PRIVMSG',$item->{'retweeted_status'}->{'user'}->{'screen_name'},$chan,$item->{'tircd_ticker_slot_display'} . $item->{'retweeted_status'}->{'text'} . ' (\cvRT\cv by ' . $item->{'user'}->{'screen_name'} . ')');
+              $kernel->yield('user_msg','PRIVMSG',$item->{'retweeted_status'}->{'user'}->{'screen_name'},$chan,$item->{'tircd_ticker_slot_display'} . "  " . $item->{'retweeted_status'}->{'text'} . " \cv(" . $item->{'user'}->{'screen_name'} . ")\cv");
             }
             else {
-              $kernel->yield('user_msg','PRIVMSG',$item->{'user'}->{'screen_name'},$chan,$item->{'tircd_ticker_slot_display'} . $item->{'text'});
+              $kernel->yield('user_msg','PRIVMSG',$item->{'user'}->{'screen_name'},$chan,$item->{'tircd_ticker_slot_display'} . "  " . $item->{'text'});
             }
           }
           # - And set topic on the timeline channel if user is me and the topic is not already set 
@@ -2011,10 +2011,10 @@ sub twitter_ownprofile {
 				# TODO change filtering for realname / urls to happen here, along with general filtering
 				# Fixing issue #81
 				if(defined($item->{'retweeted_status'})) {
-					$kernel->yield('user_msg','PRIVMSG',$item->{'retweeted_status'}->{'user'}->{'screen_name'},$chan,$item->{'tircd_ticker_slot_display'} . $item->{'retweeted_status'}->{'text'} . " (\cvRT\cv)");
+					$kernel->yield('user_msg','PRIVMSG',$item->{'retweeted_status'}->{'user'}->{'screen_name'},$chan,$item->{'tircd_ticker_slot_display'} . "\N{U+21F5} " . $item->{'retweeted_status'}->{'text'});
 				}
 				else {
-					$kernel->yield('user_msg','PRIVMSG',$item->{'user'}->{'screen_name'},$chan,$item->{'tircd_ticker_slot_display'} . $item->{'text'});
+					$kernel->yield('user_msg','PRIVMSG',$item->{'user'}->{'screen_name'},$chan,$item->{'tircd_ticker_slot_display'} . "  " . $item->{'text'});
 				}
 			}
 		}
@@ -2149,10 +2149,10 @@ sub twitter_search {
     if ($result->{'from_user'} ne $heap->{'username'}) {
       $kernel->call($_[SESSION],'tircd_ticker_assign_slot', $result, $config{'debug'});
       if(defined($result->{'retweeted_status'})) {
-        $kernel->yield('user_msg','PRIVMSG',$result->{'retweeted_status'}->{'user'}->{'screen_name'},$chan,$result->{'tircd_ticker_slot_display'} . $result->{'retweeted_status'}->{'text'} . ' (\cvRT\cv by ' . $result->{'from_user'} . ')');
+        $kernel->yield('user_msg','PRIVMSG',$result->{'retweeted_status'}->{'user'}->{'screen_name'},$chan,$result->{'tircd_ticker_slot_display'} . "\N{U+21F5} " . $result->{'retweeted_status'}->{'text'} . " \cv(" . $result->{'from_user'} . ")\cv");
       }
       else {
-        $kernel->yield('user_msg','PRIVMSG',$result->{'from_user'},$chan,$result->{'tircd_ticker_slot_display'} . $result->{'text'});
+        $kernel->yield('user_msg','PRIVMSG',$result->{'from_user'},$chan,$result->{'tircd_ticker_slot_display'} . "  " . $result->{'text'});
       }
     }
   }
